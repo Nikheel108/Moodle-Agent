@@ -78,7 +78,12 @@ with tab1:
     st.subheader("Filter & Sort Assignments")
     colA, colB = st.columns(2)
     with colA:
-        status_filter = st.multiselect("Filter by Status", ["pending", "approved", "submitted"], default=["pending", "approved", "submitted"])
+        all_statuses = ["pending", "in_progress", "draft_ready", "awaiting_review", "approved", "submitted", "overdue"]
+        status_filter = st.multiselect(
+            "Filter by Status", 
+            all_statuses, 
+            default=["pending", "in_progress", "draft_ready", "awaiting_review", "approved", "overdue"]
+        )
     with colB:
         urgency_filter = st.selectbox("Priority Deadlines", ["All", "🔴 Critical (<24h)", "🟠 Urgent (<3 days)", "🟡 Upcoming (<1 week)", "🟢 Relaxed"])
     
@@ -88,19 +93,81 @@ with tab1:
 
     if not filtered_tasks:
         st.info("No tasks match the current filters.")
+    
+    # Re-group by course
+    display_courses = {}
+    for t in filtered_tasks:
+        if t.course_name not in display_courses:
+            display_courses[t.course_name] = []
+        display_courses[t.course_name].append(t)
+        
+    display_course_info = []
+    for c_name, c_tasks in display_courses.items():
+        pending_c = [t for t in c_tasks if t.status != 'submitted']
+        next_dead = min([t.due_date for t in pending_c if t.due_date], default=None)
+        display_course_info.append({
+            "name": c_name,
+            "tasks": c_tasks,
+            "pending_count": len(pending_c),
+            "next_deadline": next_dead
+        })
+    display_course_info.sort(key=lambda x: str(x["next_deadline"]) if x["next_deadline"] else "9999")
+    
+    if st.session_state.get('selected_course') not in display_courses:
+        st.session_state.selected_course = None
 
-    cols = st.columns(3)
-    for i, t in enumerate(filtered_tasks):
-        with cols[i % 3]:
-            urgency = get_urgency_level(t.due_date)
-            st.markdown(f"""
-            <div style='padding:15px; border:1px solid #444; border-radius:10px; margin-bottom:15px; background-color:#1e1e1e;'>
-                <h5 style='margin:0; padding:0;'>{t.assignment_name}</h5>
-                <p style='color:#bbb; font-size: 0.9em;'>{t.course_name}</p>
-                <p><b>Priority:</b> {urgency}</p>
-                <p><b>Status:</b> {t.status.upper()}</p>
-            </div>
-            """, unsafe_allow_html=True)
+    if st.session_state.selected_course is None:
+        st.subheader("Your Courses")
+        cols = st.columns(3)
+        for i, c in enumerate(display_course_info):
+            with cols[i % 3]:
+                st.markdown(f"""
+                <div style='padding:15px; border:1px solid #ddd; border-radius:10px; margin-bottom:15px; background-color:#2e2e2e;'>
+                    <h4>{c['name']}</h4>
+                    <p><b>Matching Tasks:</b> {len(c['tasks'])}</p>
+                    <p><b>Pending Tasks:</b> {c['pending_count']}</p>
+                    <p><b>Next Deadline:</b> {c['next_deadline'] or 'None'}</p>
+                </div>
+                """, unsafe_allow_html=True)
+                if st.button("View Tasks", key=f"view_{i}"):
+                    st.session_state.selected_course = c['name']
+                    st.rerun()
+    else:
+        st.subheader(f"Tasks for: {st.session_state.selected_course}")
+        if st.button("⬅️ Back to Courses"):
+            st.session_state.selected_course = None
+            st.rerun()
+            
+        c_tasks = display_courses[st.session_state.selected_course]
+        st.markdown("---")
+        header1, header2, header3, header4, header5 = st.columns([3, 2, 1.5, 1.5, 1.5])
+        header1.write("**Title**")
+        header2.write("**Deadline**")
+        header3.write("**Draft Ready?**")
+        header4.write("**Submitted?**")
+        header5.write("**Action / Download**")
+        st.markdown("---")
+        
+        for t in c_tasks:
+            col1, col2, col3, col4, col5 = st.columns([3, 2, 1.5, 1.5, 1.5])
+            col1.write(t.assignment_name)
+            col2.write(str(t.due_date))
+            
+            has_draft = bool(t.draft_path and os.path.exists(t.draft_path))
+            col3.write("✅ Yes" if has_draft else "❌ No")
+            col4.write("✅ Yes" if t.status == 'submitted' else "❌ No")
+            
+            with col5:
+                if t.status == 'submitted' and t.upload_package_path and os.path.exists(t.upload_package_path):
+                    with open(t.upload_package_path, "rb") as pdf_file:
+                        st.download_button("Download PDF", data=pdf_file, file_name=os.path.basename(t.upload_package_path), mime="application/pdf", key=f"dl_{t.id}")
+                elif not has_draft and t.status != 'submitted':
+                    if st.button("Generate", key=f"gen_{t.id}"):
+                        with st.spinner("Generating..."):
+                            subprocess.run(["python", "-m", "moodle_agent.cli", "generate", str(t.id), "--type", "draft"])
+                            st.rerun()
+                elif has_draft and t.status != 'submitted':
+                    st.info("Check Action Center")
 
 with tab2:
     st.subheader("Workflow Stages & Progress")

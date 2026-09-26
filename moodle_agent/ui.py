@@ -317,13 +317,18 @@ with tab3:
                 st.markdown("##### ⚡ Quick Actions")
                 btn_cols = st.columns([1.2, 1.2, 1.2, 1.5, 2])
                 with btn_cols[0]:
-                    if st.button("✅ Approve", key=f"app_{task.id}", type="primary"):
+                    is_approved = (task.status == 'approved')
+                    btn_label = "✅ Approved" if is_approved else "✅ Approve"
+                    btn_type = "secondary" if is_approved else "primary"
+                    
+                    if st.button(btn_label, key=f"app_{task.id}", type=btn_type, disabled=is_approved):
                         safe_title = re.sub(r'[\\/*?:"<>|]', '-', task.assignment_name)
                         pdf_path = str(Path(task.draft_path).parent / f"{STUDENT_PRN}_{safe_title}.pdf")
                         if convert_md_to_pdf(draft_content, pdf_path):
                             db.update_task_status(task.id, TaskStatus.APPROVED)
                             db.update_task_paths(task.id, upload_package_path=pdf_path)
-                            st.success("Draft approved & PDF Exported!")
+                            st.toast(f"✅ {task.assignment_name} Draft Approved & PDF Exported!")
+                            time.sleep(0.5) # Give toast time to appear before rerun
                             st.rerun()
                 
                 with btn_cols[1]:

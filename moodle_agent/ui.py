@@ -346,14 +346,23 @@ with tab3:
                             if pdf_path and os.path.exists(pdf_path):
                                 client = MoodleClient()
                                 item_id = client.upload_file(pdf_path)
-                                if item_id and client.submit_assignment_file(task.id, item_id):
+                                if item_id and client.submit_assignment_file(task.moodle_assignment_id, item_id):
                                     db.update_task_status(task.id, TaskStatus.SUBMITTED)
                                     st.success("Uploaded!")
                                     st.rerun()
+                                else:
+                                    st.error("Failed to submit to Moodle. Check logs.")
                             else:
                                 st.error("PDF missing.")
                                 
                 with btn_cols[3]:
+                    if task.status == 'approved' and db.get_task(task.id).upload_package_path:
+                        pdf_path = db.get_task(task.id).upload_package_path
+                        if os.path.exists(pdf_path):
+                            with open(pdf_path, "rb") as f:
+                                st.download_button("💾 Download PDF", data=f, file_name=Path(pdf_path).name, mime="application/pdf", key=f"dl_{task.id}")
+                                
+                with btn_cols[4]:
                     if st.button("⚠️ Force Override", key=f"override_{task.id}"):
                         st.warning("Override toggled.")
                         

@@ -189,26 +189,22 @@ with tab1:
                 color = get_urgency_color(urgency)
                 countdown = get_time_remaining(c['next_deadline'])
                 
-                st.markdown(f"""
-                <div style='border-top: 5px solid {color}; padding: 18px; margin-bottom: 12px; background-color: #2b2b36; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);'>
-                    <h4 style='margin-top:0; margin-bottom: 15px; color: #f8fafc; font-size: 1.15em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;' title='{c['name']}'>{c['name']}</h4>
-                    
-                    <div style='margin-bottom: 15px;'>
-                        <div style='display: flex; justify-content: space-between; font-size: 0.85em; color: #94a3b8; margin-bottom: 6px;'>
-                            <span>Course Progress</span>
-                            <span><b>{c['progress']}%</b> ({c['submitted_count']}/{c['total_count']})</span>
-                        </div>
-                        <div style='width: 100%; background-color: #3f3f46; border-radius: 6px; height: 8px; overflow: hidden;'>
-                            <div style='width: {c['progress']}%; background-color: {color if c['progress'] < 100 else "#10b981"}; height: 100%; border-radius: 6px; transition: width 0.5s ease;'></div>
-                        </div>
-                    </div>
-                    
-                    <div style='font-size: 0.9em; color: #cbd5e1; display: flex; align-items: center; gap: 8px;'>
-                        <span>⏳</span>
-                        <span><b>Next Due:</b> {countdown}</span>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                st.markdown(f"""<div style='border-top: 5px solid {color}; padding: 18px; margin-bottom: 12px; background-color: #2b2b36; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);'>
+<h4 style='margin-top:0; margin-bottom: 15px; color: #f8fafc; font-size: 1.15em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;' title='{c['name']}'>{c['name']}</h4>
+<div style='margin-bottom: 15px;'>
+<div style='display: flex; justify-content: space-between; font-size: 0.85em; color: #94a3b8; margin-bottom: 6px;'>
+<span>Course Progress</span>
+<span><b>{c['progress']}%</b> ({c['submitted_count']}/{c['total_count']})</span>
+</div>
+<div style='width: 100%; background-color: #3f3f46; border-radius: 6px; height: 8px; overflow: hidden;'>
+<div style='width: {c['progress']}%; background-color: {color if c['progress'] < 100 else "#10b981"}; height: 100%; border-radius: 6px; transition: width 0.5s ease;'></div>
+</div>
+</div>
+<div style='font-size: 0.9em; color: #cbd5e1; display: flex; align-items: center; gap: 8px;'>
+<span>⏳</span>
+<span><b>Next Due:</b> {countdown}</span>
+</div>
+</div>""", unsafe_allow_html=True)
                 
                 if st.button("📂 Open Tasks", key=f"view_{i}", use_container_width=True, type="secondary"):
                     st.session_state.selected_course = c['name']
@@ -232,15 +228,13 @@ with tab1:
             elif has_draft: badge = "🟡 Draft Ready"
             else: badge = "⚪ Pending"
             
-            st.markdown(f"""
-            <div style='border-left: 6px solid {color}; padding: 15px; margin-bottom: 10px; background-color: #2b2b36; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2);'>
-                <h4 style='margin:0; padding-bottom:10px;'>📝 {t.assignment_name}</h4>
-                <div style='display:flex; justify-content:space-between; color:#cbd5e1; font-size:14px;'>
-                    <span><b>⏳ Deadline:</b> {countdown}</span>
-                    <span style='background:#3f3f46; padding:2px 8px; border-radius:12px;'>{badge}</span>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"""<div style='border-left: 6px solid {color}; padding: 15px; margin-bottom: 10px; background-color: #2b2b36; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2);'>
+<h4 style='margin:0; padding-bottom:10px;'>📝 {t.assignment_name}</h4>
+<div style='display:flex; justify-content:space-between; color:#cbd5e1; font-size:14px;'>
+<span><b>⏳ Deadline:</b> {countdown}</span>
+<span style='background:#3f3f46; padding:2px 8px; border-radius:12px;'>{badge}</span>
+</div>
+</div>""", unsafe_allow_html=True)
             
             btn_cols = st.columns([1.5, 1.5, 1.5, 1.5, 2])
             if t.status == 'submitted' and t.upload_package_path and os.path.exists(t.upload_package_path):

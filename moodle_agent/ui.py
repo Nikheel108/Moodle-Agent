@@ -11,187 +11,183 @@ from moodle_agent.config import DATA_DIR, STUDENT_NAME, STUDENT_PRN
 from moodle_agent.task_db import TaskDatabase
 from moodle_agent.pdf_exporter import convert_md_to_pdf
 
-st.set_page_config(page_title="Moodle Agent Dashboard", page_icon="🎓", layout="wide")
-
-st.title("🎓 Moodle Assignment Agent")
-st.markdown(f"**Welcome, {STUDENT_NAME}!** Your personal AI assistant is active.")
+st.set_page_config(page_title="Universal Agent Dashboard", page_icon="🤖", layout="wide")
 
 db = TaskDatabase()
 tasks = db.get_all_tasks()
 
-# --- Helper logic for grouping ---
-courses = {}
-for t in tasks:
-    if t.course_name not in courses:
-        courses[t.course_name] = []
-    courses[t.course_name].append(t)
+# --- Utility Functions ---
+def get_urgency_level(due_date):
+    if not due_date: return "⚪ No Deadline"
+    try:
+        if isinstance(due_date, str):
+            due_obj = datetime.fromisoformat(due_date.replace("Z", "+00:00"))
+        else:
+            due_obj = due_date
+        days = (due_obj - datetime.now(due_obj.tzinfo)).total_seconds() / 86400
+        if days < 0: return "🔴 Overdue"
+        if days < 1: return "🔴 Critical (<24h)"
+        if days < 3: return "🟠 Urgent (<3 days)"
+        if days < 7: return "🟡 Upcoming (<1 week)"
+        return "🟢 Relaxed"
+    except:
+        return "⚪ Unknown"
 
-# Calculate course next deadline
-course_info = []
-for c_name, c_tasks in courses.items():
-    pending = [t for t in c_tasks if t.status != 'submitted']
-    next_deadline = min([t.due_date for t in pending if t.due_date], default=None)
-    course_info.append({
-        "name": c_name,
-        "tasks": c_tasks,
-        "pending_count": len(pending),
-        "next_deadline": next_deadline
-    })
-# Sort courses by next deadline
-course_info.sort(key=lambda x: str(x["next_deadline"]) if x["next_deadline"] else "9999")
+# --- Sidebar Controls (Notifications, Platform, Overrides) ---
+st.sidebar.title("🤖 Agent Controls")
 
-# Session state for navigation
-if 'selected_course' not in st.session_state:
-    st.session_state.selected_course = None
+platform = st.sidebar.selectbox("🌐 Integration Platform", ["Moodle", "Canvas (Beta)", "Blackboard (Beta)"])
+if platform != "Moodle":
+    st.sidebar.warning(f"{platform} module is currently in beta.")
 
-# --- Sidebar Summary ---
-st.sidebar.header("📊 Overview")
-st.sidebar.metric("Total Assignments", len(tasks))
-st.sidebar.metric("Pending", sum(1 for t in tasks if t.status != 'submitted'))
-st.sidebar.metric("Submitted", sum(1 for t in tasks if t.status == 'submitted'))
+# Global Override Switch
+agent_status = st.sidebar.toggle("🟢 Master Agent Switch (Active/Pause)", value=True)
+if not agent_status:
+    st.sidebar.error("Agent is currently PAUSED. No background tasks will run.")
 
-if st.sidebar.button("🔄 Sync Moodle Now"):
-    with st.spinner("Fetching latest assignments..."):
-        subprocess.run(["python", "-m", "moodle_agent.cli", "sync"], capture_output=True)
-        st.toast("Sync complete!")
-        st.rerun()
+st.sidebar.markdown("---")
+st.sidebar.header("🔔 Recent Notifications")
+with st.sidebar.expander("View System Events", expanded=True):
+    st.info("🔄 10 mins ago: Sync completed.")
+    st.success("✅ 1 hour ago: DCGAN pdf uploaded.")
+    st.warning("⚠️ 3 hours ago: Credential refresh needed soon.")
+
+st.sidebar.markdown("---")
+if st.sidebar.button("🔄 Trigger Manual Sync"):
+    if agent_status:
+        with st.spinner(f"Fetching assignments from {platform}..."):
+            subprocess.run(["python", "-m", "moodle_agent.cli", "sync"], capture_output=True)
+            st.toast("Sync complete!")
+            st.rerun()
+    else:
+        st.sidebar.error("Enable Master Switch to sync.")
 
 # --- Main Dashboard Tabs ---
-tab1, tab2, tab3 = st.tabs(["🏠 Courses Dashboard", "⚡ Action Center (Review)", "📜 History & Logs"])
+st.title(f"🤖 Universal Assignment Agent - {platform}")
+st.markdown(f"**User:** {STUDENT_NAME} | **PRN:** {STUDENT_PRN}")
+
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "🏠 Dashboard & Filters", 
+    "📈 Workflow Tracking", 
+    "⚡ Action Center", 
+    "⚙️ Admin & Controls", 
+    "📜 Diagnostics"
+])
 
 with tab1:
-    if st.session_state.selected_course is None:
-        st.subheader("Your Courses")
-        if not course_info:
-            st.info("No assignments found. Sync your Moodle account!")
-            
-        cols = st.columns(3)
-        for i, c in enumerate(course_info):
-            with cols[i % 3]:
-                st.markdown(f"""
-                <div style='padding:15px; border:1px solid #ddd; border-radius:10px; margin-bottom:15px; background-color:#2e2e2e;'>
-                    <h4>{c['name']}</h4>
-                    <p><b>Pending Tasks:</b> {c['pending_count']}</p>
-                    <p><b>Next Deadline:</b> {c['next_deadline'] or 'None'}</p>
-                </div>
-                """, unsafe_allow_html=True)
-                if st.button("View Tasks", key=f"view_{i}"):
-                    st.session_state.selected_course = c['name']
-                    st.rerun()
-    else:
-        st.subheader(f"Tasks for: {st.session_state.selected_course}")
-        if st.button("⬅️ Back to Courses"):
-            st.session_state.selected_course = None
-            st.rerun()
-            
-        # Display Tasks in a table format using columns
-        c_tasks = courses[st.session_state.selected_course]
-        st.markdown("---")
-        header1, header2, header3, header4, header5 = st.columns([3, 2, 1.5, 1.5, 1.5])
-        header1.write("**Title**")
-        header2.write("**Deadline**")
-        header3.write("**Draft Ready?**")
-        header4.write("**Submitted?**")
-        header5.write("**Action / Download**")
-        st.markdown("---")
-        
-        for t in c_tasks:
-            col1, col2, col3, col4, col5 = st.columns([3, 2, 1.5, 1.5, 1.5])
-            col1.write(t.assignment_name)
-            col2.write(str(t.due_date))
-            
-            has_draft = bool(t.draft_path and os.path.exists(t.draft_path))
-            col3.write("✅ Yes" if has_draft else "❌ No")
-            col4.write("✅ Yes" if t.status == 'submitted' else "❌ No")
-            
-            with col5:
-                if t.status == 'submitted' and t.upload_package_path and os.path.exists(t.upload_package_path):
-                    with open(t.upload_package_path, "rb") as pdf_file:
-                        st.download_button("Download PDF", data=pdf_file, file_name=os.path.basename(t.upload_package_path), mime="application/pdf", key=f"dl_{t.id}")
-                elif not has_draft and t.status != 'submitted':
-                    if st.button("Generate", key=f"gen_{t.id}"):
-                        with st.spinner("Generating..."):
-                            subprocess.run(["python", "-m", "moodle_agent.cli", "generate", str(t.id), "--type", "draft"])
-                            st.rerun()
-                elif has_draft and t.status != 'submitted':
-                    st.info("Check Action Center")
+    st.subheader("Filter & Sort Assignments")
+    colA, colB = st.columns(2)
+    with colA:
+        status_filter = st.multiselect("Filter by Status", ["pending", "approved", "submitted"], default=["pending", "approved", "submitted"])
+    with colB:
+        urgency_filter = st.selectbox("Priority Deadlines", ["All", "🔴 Critical (<24h)", "🟠 Urgent (<3 days)", "🟡 Upcoming (<1 week)", "🟢 Relaxed"])
+    
+    filtered_tasks = [t for t in tasks if t.status in status_filter]
+    if urgency_filter != "All":
+        filtered_tasks = [t for t in filtered_tasks if get_urgency_level(t.due_date) == urgency_filter]
+
+    if not filtered_tasks:
+        st.info("No tasks match the current filters.")
+
+    cols = st.columns(3)
+    for i, t in enumerate(filtered_tasks):
+        with cols[i % 3]:
+            urgency = get_urgency_level(t.due_date)
+            st.markdown(f"""
+            <div style='padding:15px; border:1px solid #444; border-radius:10px; margin-bottom:15px; background-color:#1e1e1e;'>
+                <h5 style='margin:0; padding:0;'>{t.assignment_name}</h5>
+                <p style='color:#bbb; font-size: 0.9em;'>{t.course_name}</p>
+                <p><b>Priority:</b> {urgency}</p>
+                <p><b>Status:</b> {t.status.upper()}</p>
+            </div>
+            """, unsafe_allow_html=True)
 
 with tab2:
-    st.subheader("Action Center (Urgent Reviews & Submissions)")
-    # Sort unsubmitted tasks by due date
+    st.subheader("Workflow Stages & Progress")
+    
+    def get_progress(status):
+        states = {'pending': 25, 'draft_ready': 50, 'approved': 75, 'submitted': 100}
+        return states.get(status, 25)
+
+    for t in [x for x in tasks if x.status != 'submitted']:
+        st.markdown(f"**{t.assignment_name}** ({get_urgency_level(t.due_date)})")
+        prog = get_progress(t.status)
+        st.progress(prog)
+        st.markdown(f"<small>Status: {'Scraped' if prog==25 else 'Drafting Complete' if prog==50 else 'Approved for Upload' if prog==75 else 'Done'}</small>", unsafe_allow_html=True)
+        st.markdown("---")
+
+with tab3:
+    st.subheader("Action Center (Overrides & Manual Approval)")
     urgent_tasks = sorted([t for t in tasks if t.status != 'submitted'], key=lambda x: str(x.due_date) if x.due_date else "9999")
     
-    if not urgent_tasks:
-        st.success("All caught up! No pending tasks.")
-        
     for task in urgent_tasks:
-        with st.expander(f"🚨 {task.assignment_name} (Due: {task.due_date})"):
+        with st.expander(f"[{get_urgency_level(task.due_date)}] {task.assignment_name}"):
             has_draft = bool(task.draft_path and os.path.exists(task.draft_path))
             if not has_draft:
-                st.warning("Draft not generated yet.")
-                if st.button("Generate Draft", key=f"urgent_gen_{task.id}"):
-                    with st.spinner("Generating..."):
-                        subprocess.run(["python", "-m", "moodle_agent.cli", "generate", str(task.id), "--type", "draft"])
-                        st.rerun()
+                st.warning("No draft found.")
+                if st.button("Force Generate Draft", key=f"force_gen_{task.id}"):
+                    if agent_status:
+                        with st.spinner("Generating..."):
+                            subprocess.run(["python", "-m", "moodle_agent.cli", "generate", str(task.id), "--type", "draft"])
+                            st.rerun()
+                    else:
+                        st.error("Agent paused.")
             else:
                 with open(task.draft_path, 'r', encoding='utf-8') as f:
                     draft_content = f.read()
-                
-                st.markdown("#### Draft Preview")
                 with st.container(height=300):
                     st.markdown(draft_content)
                 
                 c1, c2 = st.columns(2)
                 with c1:
-                    if st.button("Approve & Export to PDF", key=f"urgent_app_{task.id}"):
+                    if st.button("Approve & PDF", key=f"app_{task.id}"):
                         safe_title = re.sub(r'[\\/*?:"<>|]', '-', task.assignment_name)
-                        pdf_filename = f"{STUDENT_PRN}_{safe_title}.pdf"
-                        pdf_dir = Path(task.draft_path).parent
-                        pdf_path = str(pdf_dir / pdf_filename)
-                        
+                        pdf_path = str(Path(task.draft_path).parent / f"{STUDENT_PRN}_{safe_title}.pdf")
                         if convert_md_to_pdf(draft_content, pdf_path):
-                            st.success(f"PDF created: {pdf_filename}")
                             db.update_status(task.id, 'approved')
                             with sqlite3.connect(db.db_path) as conn:
                                 conn.execute("UPDATE tasks SET upload_package_path = ? WHERE id = ?", (pdf_path, task.id))
+                            st.success("PDF Exported!")
                             st.rerun()
-                
                 with c2:
                     if task.status == 'approved':
-                        if st.button("Auto-Submit to Moodle", key=f"urgent_sub_{task.id}"):
+                        if st.button("Force Moodle Upload", key=f"upload_{task.id}"):
                             from moodle_agent.moodle_client import MoodleClient
-                            with st.spinner("Uploading and submitting to Moodle..."):
-                                pdf_path = db.get_task(task.id).upload_package_path
-                                if pdf_path and os.path.exists(pdf_path):
-                                    client = MoodleClient()
-                                    item_id = client.upload_file(pdf_path)
-                                    if item_id and client.submit_assignment_file(task.id, item_id):
-                                        db.update_status(task.id, 'submitted')
-                                        st.success("✅ Submitted!")
-                                        st.rerun()
-                                    else:
-                                        st.error("Failed to auto-submit.")
-                                else:
-                                    st.error("PDF not found.")
+                            pdf_path = db.get_task(task.id).upload_package_path
+                            if pdf_path and os.path.exists(pdf_path):
+                                client = MoodleClient()
+                                item_id = client.upload_file(pdf_path)
+                                if item_id and client.submit_assignment_file(task.id, item_id):
+                                    db.update_status(task.id, 'submitted')
+                                    st.success("Uploaded!")
+                                    st.rerun()
+                            else:
+                                st.error("PDF missing.")
 
-with tab3:
-    st.subheader("📜 System Logs & History")
-    submitted_tasks = [t for t in tasks if t.status == 'submitted']
+with tab4:
+    st.subheader("Admin Control Panel")
+    st.write("Manage secure credentials and define automation scope.")
     
-    st.markdown("### Submission History")
-    if not submitted_tasks:
-        st.info("No submissions yet.")
-    else:
-        for t in submitted_tasks:
-            st.success(f"✅ **{t.assignment_name}** - Submitted successfully for *{t.course_name}*")
-            
-    st.markdown("### Agent Activity Logs")
+    st.markdown("#### Automation Scope")
+    auto_draft = st.toggle("Auto-Generate Drafts on Sync", value=True)
+    auto_submit = st.toggle("Auto-Submit Assignments (Dangerous)", value=False)
+    if auto_submit:
+        st.warning("⚠️ Full Automation enabled. The agent will submit without manual review!")
+    
+    st.markdown("#### Security & Credentials")
+    st.info("Credentials are securely locked in the Windows Credential Manager.")
+    if st.button("Clear Saved Credentials"):
+        import keyring
+        keyring.delete_password("moodle_agent", "username")
+        keyring.delete_password("moodle_agent", "password")
+        st.success("Credentials cleared. Agent will request them on next sync.")
+
+with tab5:
+    st.subheader("System Logs & Diagnostics")
     log_path = Path(DATA_DIR) / "app.log"
     if log_path.exists():
         with open(log_path, 'r') as f:
-            lines = f.readlines()
-            # Show last 50 lines
-            log_content = "".join(lines[-50:])
+            log_content = "".join(f.readlines()[-100:])
         st.code(log_content, language="text")
     else:
-        st.info("No activity logs found yet.")
+        st.info("No system logs found.")

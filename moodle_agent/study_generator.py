@@ -188,6 +188,7 @@ def generate_assignment_draft(
     Returns:
         Path to the generated draft file.
     """
+    from google.genai import types
     client = _get_client()
     output_dir = output_dir or DRAFTS_DIR
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -203,25 +204,29 @@ Create a COMPLETE, submission-ready assignment response for the following:
 CRITICAL INSTRUCTIONS:
 1. DO NOT output any student details (Name, PRN, Batch, Course) at the top. The system will add this header automatically. Start directly with the main content (e.g., the Aim or Introduction).
 2. DO NOT include any conversational filler (e.g., "Here is your assignment", "Sure!"). Output ONLY the markdown content.
-3. If code is required (like C++), you MUST enclose it in proper markdown fenced code blocks specifying the language (e.g., ```cpp ... ```).
-4. For practical/lab assignments, use this exact structure:
+3. If code is required (like C++ or Python), you MUST enclose it in proper markdown fenced code blocks specifying the language (e.g., ```python ... ```).
+4. **IF the assignment requires Python code**: You MUST use your Code Execution tool to physically run the code you wrote. Take the EXACT real output from your execution and place it in the Output section. Do not hallucinate or guess the output.
+5. For practical/lab assignments, use this exact structure:
    - **Aim/Objective**
    - **Theory/Background**
    - **Implementation Code** (in fenced code blocks)
-   - **Expected Output** (in fenced code blocks)
+   - **Output** (in fenced code blocks - EXACT real output if using Code Execution)
    - **Conclusion**
-5. Ensure the response is highly professional, accurate, and ready for direct grading."""
+6. Ensure the response is highly professional, accurate, and ready for direct grading."""
 
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
         console=console,
     ) as progress:
-        progress.add_task("Generating assignment draft...", total=None)
+        progress.add_task("Generating assignment draft (with Code Execution)...", total=None)
 
         response = client.models.generate_content(
             model=GEMINI_MODEL,
             contents=prompt,
+            config=types.GenerateContentConfig(
+                tools=[types.Tool(code_execution=types.ToolCodeExecution)]
+            )
         )
 
     # Prepend student header to the response

@@ -183,42 +183,160 @@ with tab2:
         st.markdown(f"<small>Status: {'Scraped' if prog==25 else 'Drafting Complete' if prog==50 else 'Approved for Upload' if prog==75 else 'Done'}</small>", unsafe_allow_html=True)
         st.markdown("---")
 
+# --- CSS Injections for Tabs, Cards, and Floating Notifications ---
+st.markdown("""
+<style>
+/* Enhance Tab Navigation with accents */
+[data-baseweb="tab-list"] {
+    gap: 24px;
+}
+[data-baseweb="tab"] {
+    height: 50px;
+    white-space: pre-wrap;
+    background-color: transparent;
+    border-radius: 4px 4px 0px 0px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+[data-baseweb="tab"][aria-selected="true"] {
+    background-color: #2b2b36;
+    border-bottom: 3px solid #6366f1;
+    color: #ffffff;
+    font-weight: 600;
+}
+
+/* Floating Notification Panel */
+.floating-notif {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background-color: #1e1e24;
+    border-left: 4px solid #3b82f6;
+    color: #e2e8f0;
+    padding: 15px 20px;
+    border-radius: 8px;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+    z-index: 9999;
+    font-size: 0.9em;
+    animation: slideIn 0.5s ease-out;
+}
+@keyframes slideIn {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+}
+</style>
+<div class='floating-notif'>
+    🔔 <b>Agent Active:</b> Ready to draft, approve, and submit assignments.
+</div>
+""", unsafe_allow_html=True)
+
 with tab3:
-    st.subheader("Action Center (Overrides & Manual Approval)")
+    st.subheader("Action Center")
+    st.markdown("Review generated drafts, override system locks, and finalize submissions.")
+    
     urgent_tasks = sorted([t for t in tasks if t.status != 'submitted'], key=lambda x: str(x.due_date) if x.due_date else "9999")
     
+    def get_time_remaining(due_date_str):
+        if not due_date_str: return "No deadline"
+        try:
+            due_obj = datetime.fromisoformat(due_date_str.replace("Z", "+00:00"))
+            delta = due_obj - datetime.now(due_obj.tzinfo)
+            total_seconds = int(delta.total_seconds())
+            if total_seconds < 0:
+                return f"Overdue by {abs(total_seconds)//86400}d {(abs(total_seconds)//3600)%24}h"
+            days = total_seconds // 86400
+            hours = (total_seconds // 3600) % 24
+            return f"{days}d {hours}h remaining"
+        except:
+            return "Unknown"
+
+    def get_urgency_color(urgency):
+        if "Critical" in urgency or "Overdue" in urgency: return "#ef4444" # red
+        if "Urgent" in urgency: return "#f97316" # orange
+        if "Upcoming" in urgency: return "#eab308" # yellow
+        return "#22c55e" # green
+
+    if not urgent_tasks:
+        st.success("🎉 You're all caught up! No pending actions required.")
+
     for task in urgent_tasks:
-        with st.expander(f"[{get_urgency_level(task.due_date)}] {task.assignment_name}"):
-            has_draft = bool(task.draft_path and os.path.exists(task.draft_path))
+        urgency = get_urgency_level(task.due_date)
+        color = get_urgency_color(urgency)
+        countdown = get_time_remaining(task.due_date)
+        
+        # Modern Card UI
+        st.markdown(f"""
+        <div style="
+            background: #1e1e1e;
+            border-left: 6px solid {color};
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        ">
+            <div>
+                <h4 style="margin: 0; padding-bottom: 4px; color: #f8fafc;">{task.assignment_name}</h4>
+                <div style="color: #94a3b8; font-size: 0.9em; display: flex; gap: 15px;">
+                    <span>📚 {task.course_name}</span>
+                    <span>⏳ <b>{countdown}</b></span>
+                    <span>📝 Status: {task.status.replace('_', ' ').title()}</span>
+                </div>
+            </div>
+            <div style="color: {color}; font-weight: bold; font-size: 0.85em; background: {color}22; padding: 4px 10px; border-radius: 12px;">
+                {urgency.split()[0]}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        has_draft = bool(task.draft_path and os.path.exists(task.draft_path))
+        
+        with st.expander(f"View & Manage '{task.assignment_name}'", expanded=False):
             if not has_draft:
-                st.warning("No draft found.")
-                if st.button("Force Generate Draft", key=f"force_gen_{task.id}"):
-                    if agent_status:
-                        with st.spinner("Generating..."):
-                            subprocess.run(["python", "-m", "moodle_agent.cli", "generate", str(task.id), "--type", "draft"])
-                            st.rerun()
-                    else:
-                        st.error("Agent paused.")
+                st.info("Agent has not drafted this assignment yet.")
+                col_gen, _ = st.columns([1, 4])
+                with col_gen:
+                    if st.button("🤖 Generate Draft", key=f"force_gen_{task.id}", type="primary"):
+                        if agent_status:
+                            with st.spinner("Generating..."):
+                                subprocess.run(["python", "-m", "moodle_agent.cli", "generate", str(task.id), "--type", "draft"])
+                                st.rerun()
+                        else:
+                            st.error("Agent paused.")
             else:
                 with open(task.draft_path, 'r', encoding='utf-8') as f:
                     draft_content = f.read()
-                with st.container(height=300):
+                
+                st.markdown("##### 📄 Draft Preview")
+                with st.container(height=250):
                     st.markdown(draft_content)
                 
-                c1, c2 = st.columns(2)
-                with c1:
-                    if st.button("Approve & PDF", key=f"app_{task.id}"):
+                # Quick Action Buttons
+                st.markdown("##### ⚡ Quick Actions")
+                btn_cols = st.columns([1.2, 1.2, 1.2, 1.5, 2])
+                with btn_cols[0]:
+                    if st.button("✅ Approve", key=f"app_{task.id}", type="primary"):
                         safe_title = re.sub(r'[\\/*?:"<>|]', '-', task.assignment_name)
                         pdf_path = str(Path(task.draft_path).parent / f"{STUDENT_PRN}_{safe_title}.pdf")
                         if convert_md_to_pdf(draft_content, pdf_path):
                             db.update_status(task.id, 'approved')
                             with sqlite3.connect(db.db_path) as conn:
                                 conn.execute("UPDATE tasks SET upload_package_path = ? WHERE id = ?", (pdf_path, task.id))
-                            st.success("PDF Exported!")
+                            st.success("Draft approved & PDF Exported!")
                             st.rerun()
-                with c2:
+                
+                with btn_cols[1]:
+                    if st.button("🔄 Retry Draft", key=f"retry_{task.id}"):
+                        with st.spinner("Regenerating..."):
+                            subprocess.run(["python", "-m", "moodle_agent.cli", "generate", str(task.id), "--type", "draft"])
+                            st.toast("Draft regenerated!")
+                            st.rerun()
+
+                with btn_cols[2]:
                     if task.status == 'approved':
-                        if st.button("Force Moodle Upload", key=f"upload_{task.id}"):
+                        if st.button("🚀 Upload", key=f"upload_{task.id}", type="primary"):
                             from moodle_agent.moodle_client import MoodleClient
                             pdf_path = db.get_task(task.id).upload_package_path
                             if pdf_path and os.path.exists(pdf_path):
@@ -230,6 +348,12 @@ with tab3:
                                     st.rerun()
                             else:
                                 st.error("PDF missing.")
+                                
+                with btn_cols[3]:
+                    if st.button("⚠️ Force Override", key=f"override_{task.id}"):
+                        st.warning("Override toggled.")
+                        
+        st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
 
 with tab4:
     st.subheader("Admin Control Panel")

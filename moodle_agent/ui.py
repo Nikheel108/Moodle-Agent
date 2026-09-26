@@ -96,18 +96,39 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 
 with tab1:
     st.subheader("Filter & Sort Assignments")
-    colA, colB, colC = st.columns([2, 1.5, 1.5])
-    with colA:
-        search_query = st.text_input("🔍 Search Assignments...", "")
-    with colB:
-        all_statuses = ["pending", "in_progress", "draft_ready", "awaiting_review", "approved", "submitted", "overdue"]
-        status_filter = st.multiselect(
-            "Filter by Status", 
-            all_statuses, 
-            default=["pending", "in_progress", "draft_ready", "awaiting_review", "approved", "overdue"]
-        )
-    with colC:
-        urgency_filter = st.selectbox("Priority Deadlines", ["All", "🔴 Critical (<24h)", "🟠 Urgent (<3 days)", "🟡 Upcoming (<1 week)", "🟢 Relaxed"])
+    
+    all_statuses = ["pending", "in_progress", "draft_ready", "awaiting_review", "approved", "submitted", "overdue"]
+    status_counts = {s: len([t for t in tasks if t.status == s]) for s in all_statuses}
+    
+    status_metadata = {
+        "pending": "⚪ Pending",
+        "in_progress": "🔵 In Progress",
+        "draft_ready": "🟡 Draft Ready",
+        "awaiting_review": "🟠 Awaiting",
+        "approved": "🟢 Approved",
+        "submitted": "✔️ Submitted",
+        "overdue": "🔴 Overdue"
+    }
+    options_map = {f"{status_metadata[s]} ({status_counts[s]})": s for s in all_statuses}
+    
+    col_search, col_filter, col_sort = st.columns([2, 1, 1])
+    with col_search:
+        search_query = st.text_input("🔍 Search assignments...", "")
+    
+    with col_filter:
+        with st.popover("🎛️ Status Filters", use_container_width=True):
+            st.markdown("**Filter by Status**")
+            selected_display = st.pills(
+                "Status", 
+                list(options_map.keys()), 
+                selection_mode="multi", 
+                default=[k for k, v in options_map.items() if v != 'submitted'],
+                label_visibility="collapsed"
+            )
+            status_filter = [options_map[opt] for opt in selected_display] if selected_display else []
+            
+    with col_sort:
+        urgency_filter = st.selectbox("Priority", ["All", "🔴 Critical (<24h)", "🟠 Urgent (<3 days)", "🟡 Upcoming (<1 week)", "🟢 Relaxed"], label_visibility="collapsed")
     
     filtered_tasks = [t for t in tasks if t.status in status_filter]
     if urgency_filter != "All":
@@ -116,7 +137,19 @@ with tab1:
         filtered_tasks = [t for t in filtered_tasks if search_query.lower() in t.assignment_name.lower() or search_query.lower() in t.course_name.lower()]
 
     if not filtered_tasks:
-        st.info("No tasks match the current filters.")
+        st.markdown("""
+        <div style='text-align: center; padding: 60px 20px; background-color: #2b2b36; border-radius: 12px; margin: 20px 0; border: 2px dashed #475569; animation: fadeIn 0.4s ease-out;'>
+            <div style='font-size: 4em; margin-bottom: 15px;'>📭</div>
+            <h3 style='color: #f8fafc; margin-bottom: 10px;'>No Assignments Found</h3>
+            <p style='color: #94a3b8; font-size: 1.1em;'>We couldn't find any tasks matching your current filters or search query.</p>
+        </div>
+        <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        </style>
+        """, unsafe_allow_html=True)
     
     # Re-group by course
     display_courses = {}

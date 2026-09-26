@@ -33,6 +33,26 @@ def get_urgency_level(due_date):
     except:
         return "⚪ Unknown"
 
+def get_time_remaining(due_date_str):
+    if not due_date_str: return "No deadline"
+    try:
+        due_obj = datetime.fromisoformat(due_date_str.replace("Z", "+00:00"))
+        delta = due_obj - datetime.now(due_obj.tzinfo)
+        total_seconds = int(delta.total_seconds())
+        if total_seconds < 0:
+            return f"Overdue by {abs(total_seconds)//86400}d {(abs(total_seconds)//3600)%24}h"
+        days = total_seconds // 86400
+        hours = (total_seconds // 3600) % 24
+        return f"{days}d {hours}h remaining"
+    except:
+        return "Unknown"
+
+def get_urgency_color(urgency):
+    if "Critical" in urgency or "Overdue" in urgency: return "#ef4444" # red
+    if "Urgent" in urgency: return "#f97316" # orange
+    if "Upcoming" in urgency: return "#eab308" # yellow
+    return "#22c55e" # green
+
 # --- Sidebar Controls (Notifications, Platform, Overrides) ---
 st.sidebar.title("🤖 Agent Controls")
 
@@ -76,20 +96,24 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 
 with tab1:
     st.subheader("Filter & Sort Assignments")
-    colA, colB = st.columns(2)
+    colA, colB, colC = st.columns([2, 1.5, 1.5])
     with colA:
+        search_query = st.text_input("🔍 Search Assignments...", "")
+    with colB:
         all_statuses = ["pending", "in_progress", "draft_ready", "awaiting_review", "approved", "submitted", "overdue"]
         status_filter = st.multiselect(
             "Filter by Status", 
             all_statuses, 
             default=["pending", "in_progress", "draft_ready", "awaiting_review", "approved", "overdue"]
         )
-    with colB:
+    with colC:
         urgency_filter = st.selectbox("Priority Deadlines", ["All", "🔴 Critical (<24h)", "🟠 Urgent (<3 days)", "🟡 Upcoming (<1 week)", "🟢 Relaxed"])
     
     filtered_tasks = [t for t in tasks if t.status in status_filter]
     if urgency_filter != "All":
         filtered_tasks = [t for t in filtered_tasks if get_urgency_level(t.due_date) == urgency_filter]
+    if search_query.strip():
+        filtered_tasks = [t for t in filtered_tasks if search_query.lower() in t.assignment_name.lower() or search_query.lower() in t.course_name.lower()]
 
     if not filtered_tasks:
         st.info("No tasks match the current filters.")
@@ -139,35 +163,81 @@ with tab1:
             st.rerun()
             
         c_tasks = display_courses[st.session_state.selected_course]
-        st.markdown("---")
-        header1, header2, header3, header4, header5 = st.columns([3, 2, 1.5, 1.5, 1.5])
-        header1.write("**Title**")
-        header2.write("**Deadline**")
-        header3.write("**Draft Ready?**")
-        header4.write("**Submitted?**")
-        header5.write("**Action / Download**")
-        st.markdown("---")
-        
         for t in c_tasks:
-            col1, col2, col3, col4, col5 = st.columns([3, 2, 1.5, 1.5, 1.5])
-            col1.write(t.assignment_name)
-            col2.write(str(t.due_date))
-            
+            urgency = get_urgency_level(t.due_date)
+            color = get_urgency_color(urgency)
+            countdown = get_time_remaining(t.due_date)
             has_draft = bool(t.draft_path and os.path.exists(t.draft_path))
-            col3.write("✅ Yes" if has_draft else "❌ No")
-            col4.write("✅ Yes" if t.status == 'submitted' else "❌ No")
             
-            with col5:
-                if t.status == 'submitted' and t.upload_package_path and os.path.exists(t.upload_package_path):
+            # Status Badge logic
+            if t.status == 'submitted': badge = "✔️ Submitted"
+            elif t.status == 'approved': badge = "🟢 Approved"
+            elif has_draft: badge = "🟡 Draft Ready"
+            else: badge = "⚪ Pending"
+            
+            st.markdown(f"""
+            <div style='border-left: 6px solid {color}; padding: 15px; margin-bottom: 10px; background-color: #2b2b36; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2);'>
+                <h4 style='margin:0; padding-bottom:10px;'>📝 {t.assignment_name}</h4>
+                <div style='display:flex; justify-content:space-between; color:#cbd5e1; font-size:14px;'>
+                    <span><b>⏳ Deadline:</b> {countdown}</span>
+                    <span style='background:#3f3f46; padding:2px 8px; border-radius:12px;'>{badge}</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            btn_cols = st.columns([1.5, 1.5, 1.5, 1.5, 2])
+            if t.status == 'submitted' and t.upload_package_path and os.path.exists(t.upload_package_path):
+                with btn_cols[0]:
                     with open(t.upload_package_path, "rb") as pdf_file:
-                        st.download_button("Download PDF", data=pdf_file, file_name=os.path.basename(t.upload_package_path), mime="application/pdf", key=f"dl_{t.id}")
-                elif not has_draft and t.status != 'submitted':
-                    if st.button("Generate", key=f"gen_{t.id}"):
-                        with st.spinner("Generating..."):
-                            subprocess.run(["python", "-m", "moodle_agent.cli", "generate", str(t.id), "--type", "draft"])
-                            st.rerun()
-                elif has_draft and t.status != 'submitted':
-                    st.info("Check Action Center")
+                        st.download_button("💾 Download PDF", data=pdf_file, file_name=os.path.basename(t.upload_package_path), mime="application/pdf", key=f"dl_{t.id}")
+            else:
+                with btn_cols[0]:
+                    if not has_draft:
+                        if st.button("🤖 Generate Draft", key=f"gen_{t.id}", type="primary"):
+                            with st.spinner("Generating..."):
+                                subprocess.run(["python", "-m", "moodle_agent.cli", "generate", str(t.id), "--type", "draft"])
+                                st.rerun()
+                    else:
+                        if st.button("👁️ View Draft", key=f"view_draft_{t.id}"):
+                            st.session_state[f"show_draft_{t.id}"] = not st.session_state.get(f"show_draft_{t.id}", False)
+                
+                with btn_cols[1]:
+                    if has_draft:
+                        if st.button("🔄 Retry", key=f"retry_{t.id}"):
+                            with st.spinner("Regenerating..."):
+                                subprocess.run(["python", "-m", "moodle_agent.cli", "generate", str(t.id), "--type", "draft"])
+                                st.rerun()
+                                
+                with btn_cols[2]:
+                    if has_draft and t.status != 'approved':
+                        if st.button("✅ Approve", key=f"dash_app_{t.id}", type="primary"):
+                            safe_title = re.sub(r'[\\/*?:"<>|]', '-', t.assignment_name)
+                            pdf_path = str(Path(t.draft_path).parent / f"{STUDENT_PRN}_{safe_title}.pdf")
+                            if convert_md_to_pdf(open(t.draft_path, encoding='utf-8').read(), pdf_path):
+                                db.update_task_status(t.id, TaskStatus.APPROVED)
+                                db.update_task_paths(t.id, upload_package_path=pdf_path)
+                                st.rerun()
+                    elif t.status == 'approved':
+                        if st.button("🚀 Submit", key=f"dash_sub_{t.id}", type="primary"):
+                            from moodle_agent.moodle_client import MoodleClient
+                            pdf_path = db.get_task(t.id).upload_package_path
+                            if pdf_path and os.path.exists(pdf_path):
+                                client = MoodleClient()
+                                item_id = client.upload_file(pdf_path)
+                                if item_id and client.submit_assignment_file(t.moodle_assignment_id, item_id):
+                                    db.update_task_status(t.id, TaskStatus.SUBMITTED)
+                                    st.success("Uploaded!")
+                                    st.rerun()
+                                else:
+                                    st.error("Failed to submit to Moodle.")
+                            else:
+                                st.error("PDF missing.")
+                                
+            if st.session_state.get(f"show_draft_{t.id}", False):
+                with st.expander("📄 Draft Preview", expanded=True):
+                    with open(t.draft_path, 'r', encoding='utf-8') as f:
+                        st.markdown(f.read())
+            st.write("") # Spacer
 
 with tab2:
     st.subheader("Workflow Stages & Progress")
@@ -205,29 +275,40 @@ st.markdown("""
     font-weight: 600;
 }
 
-/* Floating Notification Panel */
-.floating-notif {
+/* Floating Agent Status Bar */
+.agent-status-bar {
     position: fixed;
-    bottom: 20px;
+    top: 60px;
     right: 20px;
     background-color: #1e1e24;
-    border-left: 4px solid #3b82f6;
+    border-left: 4px solid #10b981;
     color: #e2e8f0;
-    padding: 15px 20px;
+    padding: 10px 15px;
     border-radius: 8px;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
     z-index: 9999;
-    font-size: 0.9em;
-    animation: slideIn 0.5s ease-out;
+    font-size: 0.85em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    animation: slideInTop 0.5s ease-out;
 }
-@keyframes slideIn {
-    from { transform: translateX(100%); }
-    to { transform: translateX(0); }
+@keyframes slideInTop {
+    from { transform: translateY(-100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
 }
 </style>
-<div class='floating-notif'>
-    🔔 <b>Agent Active:</b> Ready to draft, approve, and submit assignments.
+<div class='agent-status-bar'>
+    <span style="display:inline-block; width:10px; height:10px; background-color:#10b981; border-radius:50%; animation: pulse 2s infinite;"></span>
+    <b>Agent Status:</b> Active & Monitoring
 </div>
+<style>
+@keyframes pulse {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+    70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+</style>
 """, unsafe_allow_html=True)
 
 with tab3:
@@ -235,26 +316,7 @@ with tab3:
     st.markdown("Review generated drafts, override system locks, and finalize submissions.")
     
     urgent_tasks = sorted([t for t in tasks if t.status != 'submitted'], key=lambda x: str(x.due_date) if x.due_date else "9999")
-    
-    def get_time_remaining(due_date_str):
-        if not due_date_str: return "No deadline"
-        try:
-            due_obj = datetime.fromisoformat(due_date_str.replace("Z", "+00:00"))
-            delta = due_obj - datetime.now(due_obj.tzinfo)
-            total_seconds = int(delta.total_seconds())
-            if total_seconds < 0:
-                return f"Overdue by {abs(total_seconds)//86400}d {(abs(total_seconds)//3600)%24}h"
-            days = total_seconds // 86400
-            hours = (total_seconds // 3600) % 24
-            return f"{days}d {hours}h remaining"
-        except:
-            return "Unknown"
 
-    def get_urgency_color(urgency):
-        if "Critical" in urgency or "Overdue" in urgency: return "#ef4444" # red
-        if "Urgent" in urgency: return "#f97316" # orange
-        if "Upcoming" in urgency: return "#eab308" # yellow
-        return "#22c55e" # green
 
     if not urgent_tasks:
         st.success("🎉 You're all caught up! No pending actions required.")

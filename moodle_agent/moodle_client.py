@@ -9,10 +9,16 @@ from typing import Any
 
 import requests
 from rich.console import Console
-
 from .credentials import get_credentials, get_token, store_token
 
-console = Console()
+class SafeConsole(Console):
+    def print(self, *args, **kwargs):
+        try:
+            super().print(*args, **kwargs)
+        except OSError:
+            pass
+
+console = SafeConsole()
 
 
 @dataclass

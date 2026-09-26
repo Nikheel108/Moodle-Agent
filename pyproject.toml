@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "moodle-assignment-agent"
+version = "0.1.0"
+description = "An intelligent agent for tracking, managing, and drafting Moodle assignments with Google Gemini AI."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Moodle Assignment Agent Developer" }
+]
+keywords = [
+    "moodle",
+    "assignment-tracker",
+    "gemini-ai",
+    "education",
+    "study-assistant",
+    "keyring",
+    "cli"
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Education",
+    "Topic :: Education",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "requests",
+    "keyring",
+    "google-genai",
+    "rich",
+    "python-dateutil",
+    "schedule",
+    "plyer",
+]
+
+[project.scripts]
+moodle-agent = "moodle_agent.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["moodle_agent*"]

@@ -39,6 +39,9 @@ dependencies = [
     "python-dateutil",
     "schedule",
     "plyer",
+    "streamlit",
+    "markdown",
+    "xhtml2pdf"
 ]
 
 [project.scripts]

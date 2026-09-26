@@ -323,19 +323,57 @@ class MoodleClient:
         )
 
     def get_assignment_upload_url(self, assignment_id: int) -> str:
-        """Generate the browser URL for uploading to an assignment.
-
-        Args:
-            assignment_id: The Moodle assignment ID.
-
-        Returns:
-            URL string to open in a browser.
-        """
+        """Generate the browser URL for uploading to an assignment."""
         return (
             f"{self._base_url}/mod/assign/view.php"
             f"?id={assignment_id}&action=editsubmission"
         )
 
+    def upload_file(self, filepath: str) -> int | None:
+        """Upload a file to Moodle's draft area and return the itemid."""
+        if not self._token:
+            self.authenticate()
+        
+        from pathlib import Path
+        path = Path(filepath)
+        upload_url = f"{self._base_url}/webservice/upload.php"
+        params = {
+            "token": self._token,
+            "component": "user",
+            "filearea": "draft",
+            "itemid": 0,
+            "filepath": "/",
+            "filename": path.name
+        }
+        
+        console.print(f"[dim]Uploading {path.name} to Moodle...[/dim]")
+        with open(path, "rb") as f:
+            files = {"file": f}
+            response = self._session.post(upload_url, data=params, files=files)
+            
+        try:
+            data = response.json()
+            if isinstance(data, list) and len(data) > 0:
+                return data[0].get("itemid")
+            elif isinstance(data, dict) and "error" in data:
+                console.print(f"[red]Moodle upload error: {data['error']}[/red]")
+                return None
+        except Exception as e:
+            console.print(f"[red]Failed to parse upload response: {e}[/red]")
+            return None
+            
+    def submit_assignment_file(self, assignment_id: int, item_id: int) -> bool:
+        """Submit the uploaded file itemid to the assignment."""
+        try:
+            params = {
+                "assignmentid": assignment_id,
+                "plugindata[files_filemanager]": item_id
+            }
+            data = self._call("mod_assign_save_submission", **params)
+            return True
+        except Exception as e:
+            console.print(f"[red]Failed to auto-submit assignment: {e}[/red]")
+            return False
 
 def _strip_html(html: str) -> str:
     """Remove HTML tags from a string (basic implementation)."""

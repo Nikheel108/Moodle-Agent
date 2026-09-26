@@ -26,6 +26,17 @@ LOGS_DIR: Final[Path] = DATA_DIR / "logs"
 # Gemini model identifier (using latest 2.5 Flash model)
 GEMINI_MODEL: Final[str] = "gemini-2.5-flash"
 
+# Student details (included in every draft header)
+STUDENT_NAME: Final[str] = "Nikheel C Khadakabhavi"
+STUDENT_PRN: Final[str] = "202401110020"
+STUDENT_BATCH: Final[str] = "A2"
+
+STUDENT_HEADER: Final[str] = (
+    f"**Name:** {STUDENT_NAME}  \n"
+    f"**PRN:** {STUDENT_PRN}  \n"
+    f"**Batch:** {STUDENT_BATCH}  \n"
+)
+
 # Moodle Web Service Endpoints and defaults
 MOODLE_TOKEN_ENDPOINT: Final[str] = "/login/token.php"
 MOODLE_WEBSERVICE_ENDPOINT: Final[str] = "/webservice/rest/server.php"

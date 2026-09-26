@@ -12,7 +12,7 @@ from typing import Any
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from .config import DRAFTS_DIR, GEMINI_MODEL
+from .config import DRAFTS_DIR, GEMINI_MODEL, STUDENT_HEADER, STUDENT_NAME, STUDENT_PRN, STUDENT_BATCH
 from .credentials import get_gemini_key
 
 console = Console()
@@ -192,22 +192,25 @@ def generate_assignment_draft(
     output_dir = output_dir or DRAFTS_DIR
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    prompt = f"""You are an expert academic assistant. Create a well-structured DRAFT response for the following assignment.
+    prompt = f"""You are an expert academic assistant writing a university assignment submission.
+Create a COMPLETE, submission-ready assignment response for the following:
 
 **Course:** {course_name}
 **Assignment:** {assignment_name}
 **Description/Instructions:**
 {description}
 
-Important guidelines:
-1. Create a thorough, well-researched draft response.
-2. Use proper academic formatting and citations where appropriate.
-3. Include clear section headings and logical flow.
-4. Mark any areas that need the student's personal input with [YOUR INPUT NEEDED: description].
-5. Include placeholder references as [REF: topic] for the student to replace with actual sources.
-6. At the top, include a note: "⚠️ DRAFT – This is an AI-assisted draft. Review, personalize, and verify all content before submission."
-
-The draft should demonstrate understanding of the topic while leaving room for the student's own voice and insights."""
+CRITICAL INSTRUCTIONS:
+1. DO NOT output any student details (Name, PRN, Batch, Course) at the top. The system will add this header automatically. Start directly with the main content (e.g., the Aim or Introduction).
+2. DO NOT include any conversational filler (e.g., "Here is your assignment", "Sure!"). Output ONLY the markdown content.
+3. If code is required (like C++), you MUST enclose it in proper markdown fenced code blocks specifying the language (e.g., ```cpp ... ```).
+4. For practical/lab assignments, use this exact structure:
+   - **Aim/Objective**
+   - **Theory/Background**
+   - **Implementation Code** (in fenced code blocks)
+   - **Expected Output** (in fenced code blocks)
+   - **Conclusion**
+5. Ensure the response is highly professional, accurate, and ready for direct grading."""
 
     with Progress(
         SpinnerColumn(),
@@ -221,9 +224,19 @@ The draft should demonstrate understanding of the topic while leaving room for t
             contents=prompt,
         )
 
+    # Prepend student header to the response
+    header = (
+        f"# {assignment_name}\n\n"
+        f"**Name:** {STUDENT_NAME}  \n"
+        f"**PRN:** {STUDENT_PRN}  \n"
+        f"**Batch:** {STUDENT_BATCH}  \n"
+        f"**Course:** {course_name}  \n\n"
+        f"---\n\n"
+    )
+
     safe_name = _sanitize_filename(assignment_name)
     filepath = output_dir / f"{safe_name}_draft.md"
-    filepath.write_text(response.text, encoding="utf-8")
+    filepath.write_text(header + response.text, encoding="utf-8")
 
     console.print(f"[green]✓ Assignment draft saved: {filepath}[/green]")
     return filepath

@@ -71,7 +71,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📈 Workflow Tracking", 
     "⚡ Action Center", 
     "⚙️ Admin & Controls", 
-    "📜 Diagnostics"
+    "📜 History & Logs"
 ])
 
 with tab1:
@@ -387,6 +387,29 @@ with tab4:
         st.success("Credentials cleared. Agent will request them on next sync.")
 
 with tab5:
+    st.subheader("🗃️ Submission History")
+    submitted_tasks = sorted([t for t in tasks if t.status == 'submitted'], key=lambda x: str(x.updated_at), reverse=True)
+    
+    if not submitted_tasks:
+        st.info("No assignments have been submitted yet.")
+    else:
+        for t in submitted_tasks:
+            with st.container():
+                st.markdown(f"#### 📝 {t.assignment_name}")
+                col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
+                
+                with col1:
+                    st.markdown(f"**Course:** {t.course_name}")
+                with col2:
+                    st.markdown(f"**Submitted At:** {t.updated_at[:16].replace('T', ' ')}")
+                with col3:
+                    st.markdown(f"**Deadline:** {get_time_remaining(t.due_date)}")
+                with col4:
+                    if t.upload_package_path and os.path.exists(t.upload_package_path):
+                        with open(t.upload_package_path, "rb") as f:
+                            st.download_button("💾 Download PDF", data=f, file_name=Path(t.upload_package_path).name, mime="application/pdf", key=f"hist_dl_{t.id}")
+                st.divider()
+
     st.subheader("System Logs & Diagnostics")
     log_path = Path(DATA_DIR) / "app.log"
     if log_path.exists():

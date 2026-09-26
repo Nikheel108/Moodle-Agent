@@ -8,7 +8,7 @@ import re
 import sqlite3
 
 from moodle_agent.config import DATA_DIR, STUDENT_NAME, STUDENT_PRN
-from moodle_agent.task_db import TaskDatabase
+from moodle_agent.task_db import TaskDatabase, TaskStatus
 from moodle_agent.pdf_exporter import convert_md_to_pdf
 
 st.set_page_config(page_title="Universal Agent Dashboard", page_icon="🤖", layout="wide")
@@ -321,9 +321,8 @@ with tab3:
                         safe_title = re.sub(r'[\\/*?:"<>|]', '-', task.assignment_name)
                         pdf_path = str(Path(task.draft_path).parent / f"{STUDENT_PRN}_{safe_title}.pdf")
                         if convert_md_to_pdf(draft_content, pdf_path):
-                            db.update_status(task.id, 'approved')
-                            with sqlite3.connect(db.db_path) as conn:
-                                conn.execute("UPDATE tasks SET upload_package_path = ? WHERE id = ?", (pdf_path, task.id))
+                            db.update_task_status(task.id, TaskStatus.APPROVED)
+                            db.update_task_paths(task.id, upload_package_path=pdf_path)
                             st.success("Draft approved & PDF Exported!")
                             st.rerun()
                 
@@ -343,7 +342,7 @@ with tab3:
                                 client = MoodleClient()
                                 item_id = client.upload_file(pdf_path)
                                 if item_id and client.submit_assignment_file(task.id, item_id):
-                                    db.update_status(task.id, 'submitted')
+                                    db.update_task_status(task.id, TaskStatus.SUBMITTED)
                                     st.success("Uploaded!")
                                     st.rerun()
                             else:

@@ -71,7 +71,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📈 Workflow Tracking", 
     "⚡ Action Center", 
     "⚙️ Admin & Controls", 
-    "📜 Diagnostics"
+    "📜 History & Logs"
 ])
 
 with tab1:
@@ -317,13 +317,18 @@ with tab3:
                 st.markdown("##### ⚡ Quick Actions")
                 btn_cols = st.columns([1.2, 1.2, 1.2, 1.5, 2])
                 with btn_cols[0]:
-                    if st.button("✅ Approve", key=f"app_{task.id}", type="primary"):
+                    is_approved = (task.status == 'approved')
+                    btn_label = "✅ Approved" if is_approved else "✅ Approve"
+                    btn_type = "secondary" if is_approved else "primary"
+                    
+                    if st.button(btn_label, key=f"app_{task.id}", type=btn_type, disabled=is_approved):
                         safe_title = re.sub(r'[\\/*?:"<>|]', '-', task.assignment_name)
                         pdf_path = str(Path(task.draft_path).parent / f"{STUDENT_PRN}_{safe_title}.pdf")
                         if convert_md_to_pdf(draft_content, pdf_path):
                             db.update_task_status(task.id, TaskStatus.APPROVED)
                             db.update_task_paths(task.id, upload_package_path=pdf_path)
-                            st.success("Draft approved & PDF Exported!")
+                            st.toast(f"✅ {task.assignment_name} Draft Approved & PDF Exported!")
+                            time.sleep(0.5) # Give toast time to appear before rerun
                             st.rerun()
                 
                 with btn_cols[1]:
@@ -341,14 +346,23 @@ with tab3:
                             if pdf_path and os.path.exists(pdf_path):
                                 client = MoodleClient()
                                 item_id = client.upload_file(pdf_path)
-                                if item_id and client.submit_assignment_file(task.id, item_id):
+                                if item_id and client.submit_assignment_file(task.moodle_assignment_id, item_id):
                                     db.update_task_status(task.id, TaskStatus.SUBMITTED)
                                     st.success("Uploaded!")
                                     st.rerun()
+                                else:
+                                    st.error("Failed to submit to Moodle. Check logs.")
                             else:
                                 st.error("PDF missing.")
                                 
                 with btn_cols[3]:
+                    if task.status == 'approved' and db.get_task(task.id).upload_package_path:
+                        pdf_path = db.get_task(task.id).upload_package_path
+                        if os.path.exists(pdf_path):
+                            with open(pdf_path, "rb") as f:
+                                st.download_button("💾 Download PDF", data=f, file_name=Path(pdf_path).name, mime="application/pdf", key=f"dl_{task.id}")
+                                
+                with btn_cols[4]:
                     if st.button("⚠️ Force Override", key=f"override_{task.id}"):
                         st.warning("Override toggled.")
                         
@@ -373,6 +387,29 @@ with tab4:
         st.success("Credentials cleared. Agent will request them on next sync.")
 
 with tab5:
+    st.subheader("🗃️ Submission History")
+    submitted_tasks = sorted([t for t in tasks if t.status == 'submitted'], key=lambda x: str(x.updated_at), reverse=True)
+    
+    if not submitted_tasks:
+        st.info("No assignments have been submitted yet.")
+    else:
+        for t in submitted_tasks:
+            with st.container():
+                st.markdown(f"#### 📝 {t.assignment_name}")
+                col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
+                
+                with col1:
+                    st.markdown(f"**Course:** {t.course_name}")
+                with col2:
+                    st.markdown(f"**Submitted At:** {t.updated_at[:16].replace('T', ' ')}")
+                with col3:
+                    st.markdown(f"**Deadline:** {get_time_remaining(t.due_date)}")
+                with col4:
+                    if t.upload_package_path and os.path.exists(t.upload_package_path):
+                        with open(t.upload_package_path, "rb") as f:
+                            st.download_button("💾 Download PDF", data=f, file_name=Path(t.upload_package_path).name, mime="application/pdf", key=f"hist_dl_{t.id}")
+                st.divider()
+
     st.subheader("System Logs & Diagnostics")
     log_path = Path(DATA_DIR) / "app.log"
     if log_path.exists():

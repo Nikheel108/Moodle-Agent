@@ -162,10 +162,17 @@ with tab1:
     for c_name, c_tasks in display_courses.items():
         pending_c = [t for t in c_tasks if t.status != 'submitted']
         next_dead = min([t.due_date for t in pending_c if t.due_date], default=None)
+        total_tasks = len(c_tasks)
+        submitted_tasks = len([t for t in c_tasks if t.status == 'submitted'])
+        progress_pct = int((submitted_tasks / total_tasks) * 100) if total_tasks > 0 else 0
+        
         display_course_info.append({
             "name": c_name,
             "tasks": c_tasks,
             "pending_count": len(pending_c),
+            "submitted_count": submitted_tasks,
+            "total_count": total_tasks,
+            "progress": progress_pct,
             "next_deadline": next_dead
         })
     display_course_info.sort(key=lambda x: str(x["next_deadline"]) if x["next_deadline"] else "9999")
@@ -174,19 +181,36 @@ with tab1:
         st.session_state.selected_course = None
 
     if st.session_state.selected_course is None:
-        st.subheader("Your Courses")
+        st.subheader("📚 Your Courses")
         cols = st.columns(3)
         for i, c in enumerate(display_course_info):
             with cols[i % 3]:
+                urgency = get_urgency_level(c['next_deadline'])
+                color = get_urgency_color(urgency)
+                countdown = get_time_remaining(c['next_deadline'])
+                
                 st.markdown(f"""
-                <div style='padding:15px; border:1px solid #ddd; border-radius:10px; margin-bottom:15px; background-color:#2e2e2e;'>
-                    <h4>{c['name']}</h4>
-                    <p><b>Matching Tasks:</b> {len(c['tasks'])}</p>
-                    <p><b>Pending Tasks:</b> {c['pending_count']}</p>
-                    <p><b>Next Deadline:</b> {c['next_deadline'] or 'None'}</p>
+                <div style='border-top: 5px solid {color}; padding: 18px; margin-bottom: 12px; background-color: #2b2b36; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);'>
+                    <h4 style='margin-top:0; margin-bottom: 15px; color: #f8fafc; font-size: 1.15em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;' title='{c['name']}'>{c['name']}</h4>
+                    
+                    <div style='margin-bottom: 15px;'>
+                        <div style='display: flex; justify-content: space-between; font-size: 0.85em; color: #94a3b8; margin-bottom: 6px;'>
+                            <span>Course Progress</span>
+                            <span><b>{c['progress']}%</b> ({c['submitted_count']}/{c['total_count']})</span>
+                        </div>
+                        <div style='width: 100%; background-color: #3f3f46; border-radius: 6px; height: 8px; overflow: hidden;'>
+                            <div style='width: {c['progress']}%; background-color: {color if c['progress'] < 100 else "#10b981"}; height: 100%; border-radius: 6px; transition: width 0.5s ease;'></div>
+                        </div>
+                    </div>
+                    
+                    <div style='font-size: 0.9em; color: #cbd5e1; display: flex; align-items: center; gap: 8px;'>
+                        <span>⏳</span>
+                        <span><b>Next Due:</b> {countdown}</span>
+                    </div>
                 </div>
                 """, unsafe_allow_html=True)
-                if st.button("View Tasks", key=f"view_{i}"):
+                
+                if st.button("📂 Open Tasks", key=f"view_{i}", use_container_width=True, type="secondary"):
                     st.session_state.selected_course = c['name']
                     st.rerun()
     else:

@@ -263,7 +263,10 @@ The system will automatically intercept `terminal_output` blocks and convert the
         )
 
     # Process terminal outputs into images
-    final_text = response.text
+    # Avoid response.text UserWarning when tools are used by extracting text parts manually
+    parts = response.candidates[0].content.parts
+    final_text = "".join([p.text for p in parts if p.text])
+    
     safe_name = _sanitize_filename(assignment_name)
     
     # Find all terminal_output blocks

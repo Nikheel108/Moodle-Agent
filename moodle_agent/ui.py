@@ -54,33 +54,79 @@ def get_urgency_color(urgency):
     return "#22c55e" # green
 
 # --- Sidebar Controls (Notifications, Platform, Overrides) ---
-st.sidebar.title("🤖 Agent Controls")
-
-platform = st.sidebar.selectbox("🌐 Integration Platform", ["Moodle", "Canvas (Beta)", "Blackboard (Beta)"])
-if platform != "Moodle":
-    st.sidebar.warning(f"{platform} module is currently in beta.")
-
-# Global Override Switch
-agent_status = st.sidebar.toggle("🟢 Master Agent Switch (Active/Pause)", value=True)
-if not agent_status:
-    st.sidebar.error("Agent is currently PAUSED. No background tasks will run.")
-
-st.sidebar.markdown("---")
-st.sidebar.header("🔔 Recent Notifications")
-with st.sidebar.expander("View System Events", expanded=True):
-    st.info("🔄 10 mins ago: Sync completed.")
-    st.success("✅ 1 hour ago: DCGAN pdf uploaded.")
-    st.warning("⚠️ 3 hours ago: Credential refresh needed soon.")
-
-st.sidebar.markdown("---")
-if st.sidebar.button("🔄 Trigger Manual Sync"):
-    if agent_status:
-        with st.spinner(f"Fetching assignments from {platform}..."):
-            subprocess.run(["python", "-m", "moodle_agent.cli", "sync"], capture_output=True)
-            st.toast("Sync complete!")
-            st.rerun()
-    else:
-        st.sidebar.error("Enable Master Switch to sync.")
+with st.sidebar:
+    st.markdown("""
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom: 15px;">
+        <h2 style="margin:0;">🤖 Agent Controls</h2>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    with st.container(border=True):
+        platform = st.selectbox(
+            "🌐 Integration Platform", 
+            ["🎓 Moodle", "🎨 Canvas (Beta)", "📓 Blackboard (Beta)"],
+            help="Select which learning management system the agent should interface with."
+        )
+        if "Moodle" not in platform:
+            st.warning(f"⚠️ {platform} is currently in beta.")
+            
+    with st.container(border=True):
+        agent_status = st.toggle("Master Agent Switch", value=True, help="Toggle background automation on or off.")
+        if agent_status:
+            st.markdown("""
+            <div style="display:flex; align-items:center; gap:8px; padding: 10px; background-color:#064e3b; color:#34d399; border-radius:8px; border: 1px solid #059669;">
+                <span style="display:inline-block; width:10px; height:10px; background-color:#10b981; border-radius:50%; animation: pulse 2s infinite;"></span>
+                <b>Agent Active & Monitoring</b>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown("""
+            <div style="display:flex; align-items:center; gap:8px; padding: 10px; background-color:#7f1d1d; color:#fca5a5; border-radius:8px; border: 1px solid #dc2626;">
+                <span style="display:inline-block; width:10px; height:10px; background-color:#ef4444; border-radius:50%;"></span>
+                <b>Agent Paused</b>
+            </div>
+            """, unsafe_allow_html=True)
+            
+    with st.container(border=True):
+        st.markdown("<h4 style='margin-bottom:0;'>🔔 System Events</h4>", unsafe_allow_html=True)
+        st.markdown("""
+        <style>
+        .timeline { border-left: 2px solid #3f3f46; margin-left: 10px; padding-left: 15px; margin-top: 15px;}
+        .timeline-item { position: relative; margin-bottom: 15px; }
+        .timeline-item::before {
+            content: ''; position: absolute; left: -22px; top: 5px;
+            width: 12px; height: 12px; border-radius: 50%; border: 2px solid #2b2b36;
+        }
+        .t-info::before { background-color: #3b82f6; }
+        .t-success::before { background-color: #10b981; }
+        .t-warn::before { background-color: #eab308; }
+        </style>
+        <div class="timeline">
+            <div class="timeline-item t-info">
+                <span style="color:#94a3b8; font-size:0.8em; font-weight:bold;">10 mins ago</span><br>
+                <span style="color:#e2e8f0; font-size:0.9em;">Sync completed successfully.</span>
+            </div>
+            <div class="timeline-item t-success">
+                <span style="color:#94a3b8; font-size:0.8em; font-weight:bold;">1 hour ago</span><br>
+                <span style="color:#e2e8f0; font-size:0.9em;">DCGAN PDF generated & uploaded.</span>
+            </div>
+            <div class="timeline-item t-warn">
+                <span style="color:#94a3b8; font-size:0.8em; font-weight:bold;">3 hours ago</span><br>
+                <span style="color:#e2e8f0; font-size:0.9em;">Moodle credential refresh needed soon.</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("🔄 Trigger Manual Sync", type="primary", use_container_width=True, help="Force the agent to scrape the platform immediately."):
+        if agent_status:
+            with st.spinner("Fetching assignments..."):
+                subprocess.run(["python", "-m", "moodle_agent.cli", "sync"], capture_output=True)
+                st.toast("✅ Sync complete!")
+                time.sleep(0.5)
+                st.rerun()
+        else:
+            st.error("Enable Master Switch to sync.")
 
 # --- Main Dashboard Tabs ---
 st.title(f"🤖 Universal Assignment Agent - {platform}")

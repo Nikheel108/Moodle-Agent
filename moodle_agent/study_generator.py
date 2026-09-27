@@ -168,26 +168,54 @@ Make questions progressively harder from basic recall to application-level."""
     return filepath
 
 
+import re
+from PIL import Image, ImageDraw, ImageFont
+
+def _create_terminal_screenshot(text: str, filepath: Path) -> None:
+    try:
+        font = ImageFont.truetype("consola.ttf", 18)
+    except IOError:
+        font = ImageFont.load_default()
+    
+    lines = text.split('\n')
+    dummy_img = Image.new('RGB', (1, 1))
+    draw = ImageDraw.Draw(dummy_img)
+    
+    max_width = 0
+    total_height = 0
+    for line in lines:
+        bbox = draw.textbbox((0, 0), line, font=font)
+        max_width = max(max_width, bbox[2] - bbox[0])
+        total_height += (bbox[3] - bbox[1]) + 6
+        
+    width = max(600, max_width + 40)
+    height = max(300, total_height + 70)
+    
+    img = Image.new('RGB', (width, height), color=(12, 12, 12))
+    draw = ImageDraw.Draw(img)
+    
+    # Draw terminal top bar
+    draw.rectangle([0, 0, width, 35], fill=(35, 35, 35))
+    draw.ellipse([12, 10, 27, 25], fill=(255, 95, 86))
+    draw.ellipse([37, 10, 52, 25], fill=(255, 189, 46))
+    draw.ellipse([62, 10, 77, 25], fill=(39, 201, 63))
+    draw.text((width // 2 - 40, 8), "cmd.exe", font=font, fill=(180, 180, 180))
+    
+    y_text = 45
+    for line in lines:
+        draw.text((20, y_text), line, font=font, fill=(204, 204, 204))
+        bbox = draw.textbbox((0, 0), line, font=font)
+        y_text += (bbox[3] - bbox[1]) + 6
+
+    img.save(filepath)
+
 def generate_assignment_draft(
     assignment_name: str,
     course_name: str,
     description: str,
     output_dir: Path | None = None,
 ) -> Path:
-    """Generate a draft response/answer for an assignment.
-
-    This creates a DRAFT that the user must review, edit, and approve
-    before submission. It is clearly marked as AI-assisted.
-
-    Args:
-        assignment_name: The name of the assignment.
-        course_name: The name of the course.
-        description: The assignment description/instructions.
-        output_dir: Directory to save the draft.
-
-    Returns:
-        Path to the generated draft file.
-    """
+    """Generate a draft response/answer for an assignment."""
     from google.genai import types
     client = _get_client()
     output_dir = output_dir or DRAFTS_DIR
@@ -202,17 +230,22 @@ Create a COMPLETE, submission-ready assignment response for the following:
 {description}
 
 CRITICAL INSTRUCTIONS:
-1. DO NOT output any student details (Name, PRN, Batch, Course) at the top. The system will add this header automatically. Start directly with the main content (e.g., the Aim or Introduction).
-2. DO NOT include any conversational filler (e.g., "Here is your assignment", "Sure!"). Output ONLY the markdown content.
-3. If code is required (like C++ or Python), you MUST enclose it in proper markdown fenced code blocks specifying the language (e.g., ```python ... ```).
-4. **IF the assignment requires Python code**: You MUST use your Code Execution tool to physically run the code you wrote. Take the EXACT real output from your execution and place it in the Output section. Do not hallucinate or guess the output.
-5. For practical/lab assignments, use this exact structure:
+1. DO NOT output any student details (Name, PRN, Batch, Course) at the top.
+2. DO NOT include any conversational filler. Output ONLY the markdown content.
+3. If code is required, enclose it in proper markdown fenced code blocks (e.g., ```python ... ```).
+4. **IF the assignment requires Python code**: You MUST use your Code Execution tool to physically run the code you wrote. Take the EXACT real output from your execution and place it in the Output section.
+5. **OUTPUT SCREENSHOTS**: To simulate a real student attaching a screenshot of their code output, you MUST wrap the exact real output inside a specialized markdown block exactly like this:
+```terminal_output
+<exact real output from the code>
+```
+The system will automatically intercept `terminal_output` blocks and convert them into realistic command-line screenshots in the final PDF!
+6. For practical/lab assignments, use this exact structure:
    - **Aim/Objective**
    - **Theory/Background**
    - **Implementation Code** (in fenced code blocks)
-   - **Output** (in fenced code blocks - EXACT real output if using Code Execution)
+   - **Output** (MUST use the ```terminal_output block)
    - **Conclusion**
-6. Ensure the response is highly professional, accurate, and ready for direct grading."""
+7. Ensure the response is highly professional and accurate."""
 
     with Progress(
         SpinnerColumn(),
@@ -229,6 +262,22 @@ CRITICAL INSTRUCTIONS:
             )
         )
 
+    # Process terminal outputs into images
+    final_text = response.text
+    safe_name = _sanitize_filename(assignment_name)
+    
+    # Find all terminal_output blocks
+    pattern = re.compile(r'```terminal_output\n(.*?)\n```', re.DOTALL)
+    matches = pattern.findall(final_text)
+    
+    for i, output_text in enumerate(matches):
+        img_filename = f"{safe_name}_output_{i}.png"
+        img_filepath = output_dir / img_filename
+        _create_terminal_screenshot(output_text.strip(), img_filepath)
+        # Replace the block with an image tag pointing to the absolute path for xhtml2pdf
+        img_tag = f"\n<br>\n<img src='{img_filepath.as_posix()}' width='600' />\n<br>\n"
+        final_text = final_text.replace(f"```terminal_output\n{output_text}\n```", img_tag)
+
     # Prepend student header to the response
     header = (
         f"# {assignment_name}\n\n"
@@ -239,9 +288,8 @@ CRITICAL INSTRUCTIONS:
         f"---\n\n"
     )
 
-    safe_name = _sanitize_filename(assignment_name)
     filepath = output_dir / f"{safe_name}_draft.md"
-    filepath.write_text(header + response.text, encoding="utf-8")
+    filepath.write_text(header + final_text, encoding="utf-8")
 
     console.print(f"[green]✓ Assignment draft saved: {filepath}[/green]")
     return filepath

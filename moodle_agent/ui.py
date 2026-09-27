@@ -482,22 +482,64 @@ with tab3:
         st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
 
 with tab4:
-    st.subheader("Admin Control Panel")
-    st.write("Manage secure credentials and define automation scope.")
+    st.subheader("⚙️ Admin Control Panel")
+    st.markdown("<p style='color:#94a3b8;'>Manage agent behavior, AI generation rules, and system security.</p>", unsafe_allow_html=True)
     
-    st.markdown("#### Automation Scope")
-    auto_draft = st.toggle("Auto-Generate Drafts on Sync", value=True)
-    auto_submit = st.toggle("Auto-Submit Assignments (Dangerous)", value=False)
-    if auto_submit:
-        st.warning("⚠️ Full Automation enabled. The agent will submit without manual review!")
+    col1, col2 = st.columns(2)
     
-    st.markdown("#### Security & Credentials")
-    st.info("Credentials are securely locked in the Windows Credential Manager.")
-    if st.button("Clear Saved Credentials"):
-        import keyring
-        keyring.delete_password("moodle_agent", "username")
-        keyring.delete_password("moodle_agent", "password")
-        st.success("Credentials cleared. Agent will request them on next sync.")
+    with col1:
+        with st.container(border=True):
+            st.markdown("#### 🤖 AI Generation Rules")
+            st.markdown("<small style='color:#94a3b8;'>Set global instructions for how the agent writes your assignments.</small>", unsafe_allow_html=True)
+            st.session_state.custom_instructions = st.text_area(
+                "Global Custom Instructions", 
+                value=st.session_state.get('custom_instructions', "Write in a formal academic tone. Ensure all technical explanations are concise."),
+                height=100
+            )
+            
+        with st.container(border=True):
+            st.markdown("#### 📄 PDF Export Preferences")
+            p_col1, p_col2 = st.columns(2)
+            with p_col1:
+                st.selectbox("Base Font Size", ["Small (10pt)", "Medium (11pt)", "Large (12pt)"], index=1)
+            with p_col2:
+                st.selectbox("Code Block Theme", ["Dark (Monokai)", "Light (GitHub)"], index=0)
+                
+    with col2:
+        with st.container(border=True):
+            st.markdown("#### ⚡ Automation & Sync")
+            st.selectbox("Background Sync Frequency", ["Every 1 hour", "Every 6 hours", "Every 12 hours", "Daily"], index=1)
+            st.markdown("<hr style='margin:10px 0; border-color:#3f3f46;'>", unsafe_allow_html=True)
+            
+            auto_gen = st.toggle("Auto-Generate Drafts on Sync", value=True)
+            if auto_gen:
+                st.caption("Agent will automatically draft pending tasks in the background.")
+            
+            auto_sub = st.toggle("Auto-Submit Assignments (Dangerous)", value=False)
+            if auto_sub:
+                st.warning("⚠️ Full Automation enabled. The agent will submit without manual review!")
+                
+        with st.container(border=True):
+            st.markdown("#### 🔒 Security & Credentials")
+            st.info("Credentials securely locked in Windows Credential Manager.")
+            if st.button("Clear Saved Credentials", use_container_width=True):
+                import keyring
+                keyring.delete_password("moodle_agent", "username")
+                keyring.delete_password("moodle_agent", "password")
+                st.success("Credentials cleared. Agent will request them on next sync.")
+                
+    st.markdown("<br>", unsafe_allow_html=True)
+    with st.container(border=True):
+        st.markdown("<h4 style='color:#ef4444;'>🚨 Danger Zone</h4>", unsafe_allow_html=True)
+        st.markdown("<small style='color:#94a3b8;'>Destructive actions that cannot be undone.</small>", unsafe_allow_html=True)
+        if st.button("🗑️ Wipe Local Database Cache", type="primary", use_container_width=False):
+            # Wipe out SQLite contents
+            with db._connect() as conn:
+                conn.execute("DELETE FROM tasks")
+                conn.execute("DELETE FROM reminders")
+            st.toast("🚨 Database completely wiped! Restarting agent...")
+            time.sleep(1.5)
+            st.rerun()
 
 with tab5:
     st.subheader("🗃️ Submission History")

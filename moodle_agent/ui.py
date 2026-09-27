@@ -240,21 +240,21 @@ with tab1:
             if t.status == 'submitted' and t.upload_package_path and os.path.exists(t.upload_package_path):
                 with btn_cols[0]:
                     with open(t.upload_package_path, "rb") as pdf_file:
-                        st.download_button("💾 Download PDF", data=pdf_file, file_name=os.path.basename(t.upload_package_path), mime="application/pdf", key=f"dl_{t.id}")
+                        st.download_button("💾 Download PDF", data=pdf_file, file_name=os.path.basename(t.upload_package_path), mime="application/pdf", key=f"dash_dl_{t.id}")
             else:
                 with btn_cols[0]:
                     if not has_draft:
-                        if st.button("🤖 Generate Draft", key=f"gen_{t.id}", type="primary"):
+                        if st.button("🤖 Generate Draft", key=f"dash_gen_{t.id}", type="primary"):
                             with st.spinner("Generating..."):
                                 subprocess.run(["python", "-m", "moodle_agent.cli", "generate", str(t.id), "--type", "draft"])
                                 st.rerun()
                     else:
-                        if st.button("👁️ View Draft", key=f"view_draft_{t.id}"):
+                        if st.button("👁️ View Draft", key=f"dash_view_draft_{t.id}"):
                             st.session_state[f"show_draft_{t.id}"] = not st.session_state.get(f"show_draft_{t.id}", False)
                 
                 with btn_cols[1]:
                     if has_draft:
-                        if st.button("🔄 Retry", key=f"retry_{t.id}"):
+                        if st.button("🔄 Retry", key=f"dash_retry_{t.id}"):
                             with st.spinner("Regenerating..."):
                                 subprocess.run(["python", "-m", "moodle_agent.cli", "generate", str(t.id), "--type", "draft"])
                                 st.rerun()

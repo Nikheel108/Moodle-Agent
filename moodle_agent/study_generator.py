@@ -278,8 +278,13 @@ The system will automatically intercept `terminal_output` blocks and convert the
         img_filename = f"{safe_name}_output_{i}.png"
         img_filepath = output_dir / img_filename
         _create_terminal_screenshot(output_text.strip(), img_filepath)
-        # Replace the block with an image tag pointing to the absolute path for xhtml2pdf
-        img_tag = f"\n<br>\n<img src='{img_filepath.as_posix()}' width='600' />\n<br>\n"
+        
+        import base64
+        with open(img_filepath, "rb") as image_file:
+            encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
+            
+        # Replace the block with an image tag pointing to the base64 data
+        img_tag = f"\n<br>\n<img src='data:image/png;base64,{encoded_string}' width='600' />\n<br>\n"
         final_text = final_text.replace(f"```terminal_output\n{output_text}\n```", img_tag)
 
     # Prepend student header to the response

@@ -233,10 +233,10 @@ CRITICAL INSTRUCTIONS:
 1. DO NOT output any student details (Name, PRN, Batch, Course) at the top.
 2. DO NOT include any conversational filler. Output ONLY the markdown content.
 3. If code is required, enclose it in proper markdown fenced code blocks (e.g., ```python ... ```).
-4. **IF the assignment requires Python code**: You MUST use your Code Execution tool to physically run the code you wrote. Take the EXACT real output from your execution and place it in the Output section.
-5. **OUTPUT SCREENSHOTS**: To simulate a real student attaching a screenshot of their code output, you MUST wrap the exact real output inside a specialized markdown block exactly like this:
+4. **IF the assignment requires Python code**: You MUST use your Code Execution tool to physically run the code you wrote, if possible. **NOTE:** Your execution sandbox DOES NOT have deep learning libraries like tensorflow, keras, or torch installed! If the assignment requires these libraries, DO NOT attempt to run them and DO NOT apologize or mention the error in your text. Instead, write the correct code, and then manually mock/simulate a realistic terminal output.
+5. **OUTPUT SCREENSHOTS**: Whether you executed the code natively or manually mocked the output, to simulate a real student attaching a screenshot, you MUST wrap the exact output inside a specialized markdown block exactly like this:
 ```terminal_output
-<exact real output from the code>
+<exact real or mocked output from the code>
 ```
 The system will automatically intercept `terminal_output` blocks and convert them into realistic command-line screenshots in the final PDF!
 6. For practical/lab assignments, use this exact structure:

@@ -333,7 +333,7 @@ with tab1:
             if st.session_state.get(f"show_draft_{t.id}", False):
                 with st.expander("📄 Draft Preview", expanded=True):
                     with open(t.draft_path, 'r', encoding='utf-8') as f:
-                        st.markdown(f.read())
+                        st.markdown(f.read(), unsafe_allow_html=True)
             st.write("") # Spacer
 
 with tab2:
@@ -470,7 +470,7 @@ with tab3:
                 
                 st.markdown("##### 📄 Draft Preview")
                 with st.container(height=250):
-                    st.markdown(draft_content)
+                    st.markdown(draft_content, unsafe_allow_html=True)
                 
                 # Quick Action Buttons
                 st.markdown("##### ⚡ Quick Actions")

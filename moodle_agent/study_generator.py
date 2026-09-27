@@ -254,13 +254,14 @@ The system will automatically intercept `terminal_output` blocks and convert the
     ) as progress:
         progress.add_task("Generating assignment draft (with Code Execution)...", total=None)
 
-        response = client.models.generate_content(
+        chat = client.chats.create(
             model=GEMINI_MODEL,
-            contents=prompt,
             config=types.GenerateContentConfig(
-                tools=[types.Tool(code_execution=types.ToolCodeExecution)]
+                tools=[types.Tool(code_execution=types.ToolCodeExecution)],
+                temperature=0.2
             )
         )
+        response = chat.send_message(prompt)
 
     # Process terminal outputs into images
     # Avoid response.text UserWarning when tools are used by extracting text parts manually

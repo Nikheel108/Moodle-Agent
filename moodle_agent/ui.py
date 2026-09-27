@@ -54,33 +54,79 @@ def get_urgency_color(urgency):
     return "#22c55e" # green
 
 # --- Sidebar Controls (Notifications, Platform, Overrides) ---
-st.sidebar.title("🤖 Agent Controls")
-
-platform = st.sidebar.selectbox("🌐 Integration Platform", ["Moodle", "Canvas (Beta)", "Blackboard (Beta)"])
-if platform != "Moodle":
-    st.sidebar.warning(f"{platform} module is currently in beta.")
-
-# Global Override Switch
-agent_status = st.sidebar.toggle("🟢 Master Agent Switch (Active/Pause)", value=True)
-if not agent_status:
-    st.sidebar.error("Agent is currently PAUSED. No background tasks will run.")
-
-st.sidebar.markdown("---")
-st.sidebar.header("🔔 Recent Notifications")
-with st.sidebar.expander("View System Events", expanded=True):
-    st.info("🔄 10 mins ago: Sync completed.")
-    st.success("✅ 1 hour ago: DCGAN pdf uploaded.")
-    st.warning("⚠️ 3 hours ago: Credential refresh needed soon.")
-
-st.sidebar.markdown("---")
-if st.sidebar.button("🔄 Trigger Manual Sync"):
-    if agent_status:
-        with st.spinner(f"Fetching assignments from {platform}..."):
-            subprocess.run(["python", "-m", "moodle_agent.cli", "sync"], capture_output=True)
-            st.toast("Sync complete!")
-            st.rerun()
-    else:
-        st.sidebar.error("Enable Master Switch to sync.")
+with st.sidebar:
+    st.markdown("""
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom: 15px;">
+        <h2 style="margin:0;">🤖 Agent Controls</h2>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    with st.container(border=True):
+        platform = st.selectbox(
+            "🌐 Integration Platform", 
+            ["🎓 Moodle", "🎨 Canvas (Beta)", "📓 Blackboard (Beta)"],
+            help="Select which learning management system the agent should interface with."
+        )
+        if "Moodle" not in platform:
+            st.warning(f"⚠️ {platform} is currently in beta.")
+            
+    with st.container(border=True):
+        agent_status = st.toggle("Master Agent Switch", value=True, help="Toggle background automation on or off.")
+        if agent_status:
+            st.markdown("""
+            <div style="display:flex; align-items:center; gap:8px; padding: 10px; background-color:#064e3b; color:#34d399; border-radius:8px; border: 1px solid #059669;">
+                <span style="display:inline-block; width:10px; height:10px; background-color:#10b981; border-radius:50%; animation: pulse 2s infinite;"></span>
+                <b>Agent Active & Monitoring</b>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown("""
+            <div style="display:flex; align-items:center; gap:8px; padding: 10px; background-color:#7f1d1d; color:#fca5a5; border-radius:8px; border: 1px solid #dc2626;">
+                <span style="display:inline-block; width:10px; height:10px; background-color:#ef4444; border-radius:50%;"></span>
+                <b>Agent Paused</b>
+            </div>
+            """, unsafe_allow_html=True)
+            
+    with st.container(border=True):
+        st.markdown("<h4 style='margin-bottom:0;'>🔔 System Events</h4>", unsafe_allow_html=True)
+        st.markdown("""
+        <style>
+        .timeline { border-left: 2px solid #3f3f46; margin-left: 10px; padding-left: 15px; margin-top: 15px;}
+        .timeline-item { position: relative; margin-bottom: 15px; }
+        .timeline-item::before {
+            content: ''; position: absolute; left: -22px; top: 5px;
+            width: 12px; height: 12px; border-radius: 50%; border: 2px solid #2b2b36;
+        }
+        .t-info::before { background-color: #3b82f6; }
+        .t-success::before { background-color: #10b981; }
+        .t-warn::before { background-color: #eab308; }
+        </style>
+        <div class="timeline">
+            <div class="timeline-item t-info">
+                <span style="color:#94a3b8; font-size:0.8em; font-weight:bold;">10 mins ago</span><br>
+                <span style="color:#e2e8f0; font-size:0.9em;">Sync completed successfully.</span>
+            </div>
+            <div class="timeline-item t-success">
+                <span style="color:#94a3b8; font-size:0.8em; font-weight:bold;">1 hour ago</span><br>
+                <span style="color:#e2e8f0; font-size:0.9em;">DCGAN PDF generated & uploaded.</span>
+            </div>
+            <div class="timeline-item t-warn">
+                <span style="color:#94a3b8; font-size:0.8em; font-weight:bold;">3 hours ago</span><br>
+                <span style="color:#e2e8f0; font-size:0.9em;">Moodle credential refresh needed soon.</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("🔄 Trigger Manual Sync", type="primary", use_container_width=True, help="Force the agent to scrape the platform immediately."):
+        if agent_status:
+            with st.spinner("Fetching assignments..."):
+                subprocess.run(["python", "-m", "moodle_agent.cli", "sync"], capture_output=True)
+                st.toast("✅ Sync complete!")
+                time.sleep(0.5)
+                st.rerun()
+        else:
+            st.error("Enable Master Switch to sync.")
 
 # --- Main Dashboard Tabs ---
 st.title(f"🤖 Universal Assignment Agent - {platform}")
@@ -96,18 +142,39 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 
 with tab1:
     st.subheader("Filter & Sort Assignments")
-    colA, colB, colC = st.columns([2, 1.5, 1.5])
-    with colA:
-        search_query = st.text_input("🔍 Search Assignments...", "")
-    with colB:
-        all_statuses = ["pending", "in_progress", "draft_ready", "awaiting_review", "approved", "submitted", "overdue"]
-        status_filter = st.multiselect(
-            "Filter by Status", 
-            all_statuses, 
-            default=["pending", "in_progress", "draft_ready", "awaiting_review", "approved", "overdue"]
-        )
-    with colC:
-        urgency_filter = st.selectbox("Priority Deadlines", ["All", "🔴 Critical (<24h)", "🟠 Urgent (<3 days)", "🟡 Upcoming (<1 week)", "🟢 Relaxed"])
+    
+    all_statuses = ["pending", "in_progress", "draft_ready", "awaiting_review", "approved", "submitted", "overdue"]
+    status_counts = {s: len([t for t in tasks if t.status == s]) for s in all_statuses}
+    
+    status_metadata = {
+        "pending": "⚪ Pending",
+        "in_progress": "🔵 In Progress",
+        "draft_ready": "🟡 Draft Ready",
+        "awaiting_review": "🟠 Awaiting",
+        "approved": "🟢 Approved",
+        "submitted": "✔️ Submitted",
+        "overdue": "🔴 Overdue"
+    }
+    options_map = {f"{status_metadata[s]} ({status_counts[s]})": s for s in all_statuses}
+    
+    col_search, col_filter, col_sort = st.columns([2, 1, 1])
+    with col_search:
+        search_query = st.text_input("🔍 Search assignments...", "")
+    
+    with col_filter:
+        with st.popover("🎛️ Status Filters", use_container_width=True):
+            st.markdown("**Filter by Status**")
+            selected_display = st.pills(
+                "Status", 
+                list(options_map.keys()), 
+                selection_mode="multi", 
+                default=[k for k, v in options_map.items() if v != 'submitted'],
+                label_visibility="collapsed"
+            )
+            status_filter = [options_map[opt] for opt in selected_display] if selected_display else []
+            
+    with col_sort:
+        urgency_filter = st.selectbox("Priority", ["All", "🔴 Critical (<24h)", "🟠 Urgent (<3 days)", "🟡 Upcoming (<1 week)", "🟢 Relaxed"], label_visibility="collapsed")
     
     filtered_tasks = [t for t in tasks if t.status in status_filter]
     if urgency_filter != "All":
@@ -116,7 +183,19 @@ with tab1:
         filtered_tasks = [t for t in filtered_tasks if search_query.lower() in t.assignment_name.lower() or search_query.lower() in t.course_name.lower()]
 
     if not filtered_tasks:
-        st.info("No tasks match the current filters.")
+        st.markdown("""
+        <div style='text-align: center; padding: 60px 20px; background-color: #2b2b36; border-radius: 12px; margin: 20px 0; border: 2px dashed #475569; animation: fadeIn 0.4s ease-out;'>
+            <div style='font-size: 4em; margin-bottom: 15px;'>📭</div>
+            <h3 style='color: #f8fafc; margin-bottom: 10px;'>No Assignments Found</h3>
+            <p style='color: #94a3b8; font-size: 1.1em;'>We couldn't find any tasks matching your current filters or search query.</p>
+        </div>
+        <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        </style>
+        """, unsafe_allow_html=True)
     
     # Re-group by course
     display_courses = {}
@@ -129,10 +208,17 @@ with tab1:
     for c_name, c_tasks in display_courses.items():
         pending_c = [t for t in c_tasks if t.status != 'submitted']
         next_dead = min([t.due_date for t in pending_c if t.due_date], default=None)
+        total_tasks = len(c_tasks)
+        submitted_tasks = len([t for t in c_tasks if t.status == 'submitted'])
+        progress_pct = int((submitted_tasks / total_tasks) * 100) if total_tasks > 0 else 0
+        
         display_course_info.append({
             "name": c_name,
             "tasks": c_tasks,
             "pending_count": len(pending_c),
+            "submitted_count": submitted_tasks,
+            "total_count": total_tasks,
+            "progress": progress_pct,
             "next_deadline": next_dead
         })
     display_course_info.sort(key=lambda x: str(x["next_deadline"]) if x["next_deadline"] else "9999")
@@ -141,19 +227,32 @@ with tab1:
         st.session_state.selected_course = None
 
     if st.session_state.selected_course is None:
-        st.subheader("Your Courses")
+        st.subheader("📚 Your Courses")
         cols = st.columns(3)
         for i, c in enumerate(display_course_info):
             with cols[i % 3]:
-                st.markdown(f"""
-                <div style='padding:15px; border:1px solid #ddd; border-radius:10px; margin-bottom:15px; background-color:#2e2e2e;'>
-                    <h4>{c['name']}</h4>
-                    <p><b>Matching Tasks:</b> {len(c['tasks'])}</p>
-                    <p><b>Pending Tasks:</b> {c['pending_count']}</p>
-                    <p><b>Next Deadline:</b> {c['next_deadline'] or 'None'}</p>
-                </div>
-                """, unsafe_allow_html=True)
-                if st.button("View Tasks", key=f"view_{i}"):
+                urgency = get_urgency_level(c['next_deadline'])
+                color = get_urgency_color(urgency)
+                countdown = get_time_remaining(c['next_deadline'])
+                
+                st.markdown(f"""<div style='border-top: 5px solid {color}; padding: 18px; margin-bottom: 12px; background-color: #2b2b36; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);'>
+<h4 style='margin-top:0; margin-bottom: 15px; color: #f8fafc; font-size: 1.15em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;' title='{c['name']}'>{c['name']}</h4>
+<div style='margin-bottom: 15px;'>
+<div style='display: flex; justify-content: space-between; font-size: 0.85em; color: #94a3b8; margin-bottom: 6px;'>
+<span>Course Progress</span>
+<span><b>{c['progress']}%</b> ({c['submitted_count']}/{c['total_count']})</span>
+</div>
+<div style='width: 100%; background-color: #3f3f46; border-radius: 6px; height: 8px; overflow: hidden;'>
+<div style='width: {c['progress']}%; background-color: {color if c['progress'] < 100 else "#10b981"}; height: 100%; border-radius: 6px; transition: width 0.5s ease;'></div>
+</div>
+</div>
+<div style='font-size: 0.9em; color: #cbd5e1; display: flex; align-items: center; gap: 8px;'>
+<span>⏳</span>
+<span><b>Next Due:</b> {countdown}</span>
+</div>
+</div>""", unsafe_allow_html=True)
+                
+                if st.button("📂 Open Tasks", key=f"view_{i}", use_container_width=True, type="secondary"):
                     st.session_state.selected_course = c['name']
                     st.rerun()
     else:
@@ -175,35 +274,33 @@ with tab1:
             elif has_draft: badge = "🟡 Draft Ready"
             else: badge = "⚪ Pending"
             
-            st.markdown(f"""
-            <div style='border-left: 6px solid {color}; padding: 15px; margin-bottom: 10px; background-color: #2b2b36; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2);'>
-                <h4 style='margin:0; padding-bottom:10px;'>📝 {t.assignment_name}</h4>
-                <div style='display:flex; justify-content:space-between; color:#cbd5e1; font-size:14px;'>
-                    <span><b>⏳ Deadline:</b> {countdown}</span>
-                    <span style='background:#3f3f46; padding:2px 8px; border-radius:12px;'>{badge}</span>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"""<div style='border-left: 6px solid {color}; padding: 15px; margin-bottom: 10px; background-color: #2b2b36; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2);'>
+<h4 style='margin:0; padding-bottom:10px;'>📝 {t.assignment_name}</h4>
+<div style='display:flex; justify-content:space-between; color:#cbd5e1; font-size:14px;'>
+<span><b>⏳ Deadline:</b> {countdown}</span>
+<span style='background:#3f3f46; padding:2px 8px; border-radius:12px;'>{badge}</span>
+</div>
+</div>""", unsafe_allow_html=True)
             
             btn_cols = st.columns([1.5, 1.5, 1.5, 1.5, 2])
             if t.status == 'submitted' and t.upload_package_path and os.path.exists(t.upload_package_path):
                 with btn_cols[0]:
                     with open(t.upload_package_path, "rb") as pdf_file:
-                        st.download_button("💾 Download PDF", data=pdf_file, file_name=os.path.basename(t.upload_package_path), mime="application/pdf", key=f"dl_{t.id}")
+                        st.download_button("💾 Download PDF", data=pdf_file, file_name=os.path.basename(t.upload_package_path), mime="application/pdf", key=f"dash_dl_{t.id}")
             else:
                 with btn_cols[0]:
                     if not has_draft:
-                        if st.button("🤖 Generate Draft", key=f"gen_{t.id}", type="primary"):
+                        if st.button("🤖 Generate Draft", key=f"dash_gen_{t.id}", type="primary"):
                             with st.spinner("Generating..."):
                                 subprocess.run(["python", "-m", "moodle_agent.cli", "generate", str(t.id), "--type", "draft"])
                                 st.rerun()
                     else:
-                        if st.button("👁️ View Draft", key=f"view_draft_{t.id}"):
+                        if st.button("👁️ View Draft", key=f"dash_view_draft_{t.id}"):
                             st.session_state[f"show_draft_{t.id}"] = not st.session_state.get(f"show_draft_{t.id}", False)
                 
                 with btn_cols[1]:
                     if has_draft:
-                        if st.button("🔄 Retry", key=f"retry_{t.id}"):
+                        if st.button("🔄 Retry", key=f"dash_retry_{t.id}"):
                             with st.spinner("Regenerating..."):
                                 subprocess.run(["python", "-m", "moodle_agent.cli", "generate", str(t.id), "--type", "draft"])
                                 st.rerun()
@@ -431,22 +528,64 @@ with tab3:
         st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
 
 with tab4:
-    st.subheader("Admin Control Panel")
-    st.write("Manage secure credentials and define automation scope.")
+    st.subheader("⚙️ Admin Control Panel")
+    st.markdown("<p style='color:#94a3b8;'>Manage agent behavior, AI generation rules, and system security.</p>", unsafe_allow_html=True)
     
-    st.markdown("#### Automation Scope")
-    auto_draft = st.toggle("Auto-Generate Drafts on Sync", value=True)
-    auto_submit = st.toggle("Auto-Submit Assignments (Dangerous)", value=False)
-    if auto_submit:
-        st.warning("⚠️ Full Automation enabled. The agent will submit without manual review!")
+    col1, col2 = st.columns(2)
     
-    st.markdown("#### Security & Credentials")
-    st.info("Credentials are securely locked in the Windows Credential Manager.")
-    if st.button("Clear Saved Credentials"):
-        import keyring
-        keyring.delete_password("moodle_agent", "username")
-        keyring.delete_password("moodle_agent", "password")
-        st.success("Credentials cleared. Agent will request them on next sync.")
+    with col1:
+        with st.container(border=True):
+            st.markdown("#### 🤖 AI Generation Rules")
+            st.markdown("<small style='color:#94a3b8;'>Set global instructions for how the agent writes your assignments.</small>", unsafe_allow_html=True)
+            st.session_state.custom_instructions = st.text_area(
+                "Global Custom Instructions", 
+                value=st.session_state.get('custom_instructions', "Write in a formal academic tone. Ensure all technical explanations are concise."),
+                height=100
+            )
+            
+        with st.container(border=True):
+            st.markdown("#### 📄 PDF Export Preferences")
+            p_col1, p_col2 = st.columns(2)
+            with p_col1:
+                st.selectbox("Base Font Size", ["Small (10pt)", "Medium (11pt)", "Large (12pt)"], index=1)
+            with p_col2:
+                st.selectbox("Code Block Theme", ["Dark (Monokai)", "Light (GitHub)"], index=0)
+                
+    with col2:
+        with st.container(border=True):
+            st.markdown("#### ⚡ Automation & Sync")
+            st.selectbox("Background Sync Frequency", ["Every 1 hour", "Every 6 hours", "Every 12 hours", "Daily"], index=1)
+            st.markdown("<hr style='margin:10px 0; border-color:#3f3f46;'>", unsafe_allow_html=True)
+            
+            auto_gen = st.toggle("Auto-Generate Drafts on Sync", value=True)
+            if auto_gen:
+                st.caption("Agent will automatically draft pending tasks in the background.")
+            
+            auto_sub = st.toggle("Auto-Submit Assignments (Dangerous)", value=False)
+            if auto_sub:
+                st.warning("⚠️ Full Automation enabled. The agent will submit without manual review!")
+                
+        with st.container(border=True):
+            st.markdown("#### 🔒 Security & Credentials")
+            st.info("Credentials securely locked in Windows Credential Manager.")
+            if st.button("Clear Saved Credentials", use_container_width=True):
+                import keyring
+                keyring.delete_password("moodle_agent", "username")
+                keyring.delete_password("moodle_agent", "password")
+                st.success("Credentials cleared. Agent will request them on next sync.")
+                
+    st.markdown("<br>", unsafe_allow_html=True)
+    with st.container(border=True):
+        st.markdown("<h4 style='color:#ef4444;'>🚨 Danger Zone</h4>", unsafe_allow_html=True)
+        st.markdown("<small style='color:#94a3b8;'>Destructive actions that cannot be undone.</small>", unsafe_allow_html=True)
+        if st.button("🗑️ Wipe Local Database Cache", type="primary", use_container_width=False):
+            # Wipe out SQLite contents
+            with db._connect() as conn:
+                conn.execute("DELETE FROM tasks")
+                conn.execute("DELETE FROM reminders")
+            st.toast("🚨 Database completely wiped! Restarting agent...")
+            time.sleep(1.5)
+            st.rerun()
 
 with tab5:
     st.subheader("🗃️ Submission History")

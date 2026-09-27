@@ -23,13 +23,45 @@ def send_desktop_notification(title: str, message: str) -> None:
         message: Notification body text.
     """
     try:
-        from plyer import notification
+        import platform
+        import os
+        
+        if os.environ.get("DISABLE_NOTIFICATIONS") == "1":
+            return
 
+        if platform.system() == "Windows":
+            # plyer's balloontip runs on a background thread and frequently crashes with 
+            # Shell_NotifyIconW when the main thread exits too quickly. 
+            # Using a lightweight powershell toast is much more robust for Windows 10/11.
+            import subprocess
+            
+            # Escape single quotes for powershell string
+            safe_title = title.replace("'", "''")
+            safe_msg = message[:200].replace("'", "''")
+            
+            ps_script = f"""
+            [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+            [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
+            $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
+            $template = "<toast><visual><binding template='ToastText02'><text id='1'>{safe_title}</text><text id='2'>{safe_msg}</text></binding></visual></toast>"
+            $xml.LoadXml($template)
+            $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
+            [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("Moodle Agent").Show($toast)
+            """
+            # CREATE_NO_WINDOW = 0x08000000
+            subprocess.Popen(
+                ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_script],
+                creationflags=0x08000000
+            )
+            return
+            
+        # Fallback to plyer for Mac/Linux
+        from plyer import notification
         notification.notify(
             title=title,
-            message=message[:256],  # plyer has length limits
+            message=message[:256],
             app_name="Moodle Agent",
-            timeout=10,
+            timeout=5,
         )
     except Exception:
         # Fallback: just print to console

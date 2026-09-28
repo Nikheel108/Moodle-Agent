@@ -33,16 +33,16 @@ def convert_md_to_pdf(md_content: str, output_path: Path | str) -> bool:
         <html>
         <head>
             <style>
-                @page { size: a4 portrait; margin: 2cm; }
-                body { font-family: Helvetica, Arial, sans-serif; font-size: 12pt; line-height: 1.5; color: #000000; }
-                h1 { color: #000000; border-bottom: 1px solid #000; padding-bottom: 5px; }
-                h2, h3, h4 { color: #000000; margin-top: 20px; }
-                pre { background-color: #f8f9fa; padding: 15px; border: 1px solid #ddd; border-radius: 5px; font-family: monospace; font-size: 10pt; white-space: pre-wrap; color: #000000; }
-                code { background-color: #f8f9fa; padding: 2px 4px; font-family: monospace; border-radius: 3px; color: #000000; font-weight: normal; }
-                table { border-collapse: collapse; width: 100%; margin-bottom: 20px; color: #000000; }
-                th, td { border: 1px solid #000; padding: 8px; text-align: left; }
-                th { background-color: #f2f2f2; font-weight: bold; }
-                strong, b { color: #000000; font-weight: bold; }
+                @page {{ size: a4 portrait; margin: 2cm; }}
+                body {{ font-family: Helvetica, Arial, sans-serif; font-size: 12pt; line-height: 1.5; color: #000000; }}
+                h1 {{ color: #000000; border-bottom: 1px solid #000; padding-bottom: 5px; }}
+                h2, h3, h4 {{ color: #000000; margin-top: 20px; }}
+                pre {{ background-color: #f8f9fa; padding: 15px; border: 1px solid #ddd; border-radius: 5px; font-family: monospace; font-size: 10pt; white-space: pre-wrap; color: #000000; }}
+                code {{ background-color: #f8f9fa; padding: 2px 4px; font-family: monospace; border-radius: 3px; color: #000000; font-weight: normal; }}
+                table {{ border-collapse: collapse; width: 100%; margin-bottom: 20px; color: #000000; }}
+                th, td {{ border: 1px solid #000; padding: 8px; text-align: left; }}
+                th {{ background-color: #f2f2f2; font-weight: bold; }}
+                strong, b {{ color: #000000; font-weight: bold; }}
             </style>
         </head>
         <body>

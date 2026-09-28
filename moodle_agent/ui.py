@@ -342,7 +342,11 @@ with tab1:
                             if convert_md_to_pdf(open(t.draft_path, encoding='utf-8').read(), pdf_path):
                                 db.update_task_status(t.id, TaskStatus.APPROVED)
                                 db.update_task_paths(t.id, upload_package_path=pdf_path)
+                                st.toast(f'✅ {t.assignment_name} Draft Approved & PDF Exported!')
+                                time.sleep(1)
                                 st.rerun()
+                            else:
+                                st.error('❌ Failed to export PDF. Please check the logs.')
                     elif t.status == 'approved':
                         if st.button("🚀 Submit", key=f"dash_sub_{t.id}", type="primary"):
                             from moodle_agent.moodle_client import MoodleClient
@@ -519,6 +523,8 @@ with tab3:
                             st.toast(f"✅ {task.assignment_name} Draft Approved & PDF Exported!")
                             time.sleep(0.5) # Give toast time to appear before rerun
                             st.rerun()
+                        else:
+                            st.error('❌ Failed to export PDF. Please check the logs.')
                 
                 with btn_cols[1]:
                     if st.button("🔄 Retry Draft", key=f"retry_{task.id}"):

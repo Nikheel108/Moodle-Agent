@@ -287,12 +287,19 @@ The system will automatically intercept `terminal_output` blocks and convert the
         img_tag = f"\n<br>\n<img src='data:image/png;base64,{encoded_string}' width='600' />\n<br>\n"
         final_text = final_text.replace(f"```terminal_output\n{output_text}\n```", img_tag)
 
+    import moodle_agent.account_manager as acc_mgr
+    active_acc = acc_mgr.get_active_account()
+    
+    acc_name = active_acc.name if active_acc else "Unknown Student"
+    acc_prn = active_acc.prn if active_acc else "Unknown PRN"
+    acc_batch = active_acc.batch if active_acc else "Unknown Batch"
+    
     # Prepend student header to the response
     header = (
         f"# {assignment_name}\n\n"
-        f"**Name:** {STUDENT_NAME}  \n"
-        f"**PRN:** {STUDENT_PRN}  \n"
-        f"**Batch:** {STUDENT_BATCH}  \n"
+        f"**Name:** {acc_name}  \n"
+        f"**PRN:** {acc_prn}  \n"
+        f"**Batch:** {acc_batch}  \n"
         f"**Course:** {course_name}  \n\n"
         f"---\n\n"
     )

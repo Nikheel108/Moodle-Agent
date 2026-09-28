@@ -10,7 +10,7 @@ from xhtml2pdf import pisa
 
 logger = logging.getLogger(__name__)
 
-def convert_md_to_pdf(md_content: str, output_path: Path | str) -> bool:
+def convert_md_to_pdf(md_content: str, output_path: Path | str) -> tuple[bool, str]:
     """Converts markdown text to a PDF file.
     
     Args:
@@ -57,8 +57,8 @@ def convert_md_to_pdf(md_content: str, output_path: Path | str) -> bool:
                 dest=pdf_file
             )
             
-        return not pisa_status.err
+        return (not pisa_status.err, '' if not pisa_status.err else 'PDF generation had internal errors')
         
     except Exception as e:
         logger.error(f"Failed to convert PDF: {e}")
-        return False
+        return (False, str(e))

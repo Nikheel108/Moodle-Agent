@@ -269,7 +269,10 @@ def _cmd_setup(args: argparse.Namespace) -> None:
 def _cmd_sync(args: argparse.Namespace) -> None:
     """Sync assignments from Moodle."""
     _require_credentials()
-    db = TaskDatabase()
+    import moodle_agent.account_manager as acc_mgr
+    active_acc = acc_mgr.get_active_account()
+    db_path = acc_mgr.get_db_path(active_acc.username) if active_acc else None
+    db = TaskDatabase(db_path=db_path)
     client = MoodleClient()
 
     console.print("[bold]Syncing assignments from Moodle...[/bold]\n")
@@ -313,7 +316,10 @@ def _cmd_sync(args: argparse.Namespace) -> None:
 
 def _cmd_list(args: argparse.Namespace) -> None:
     """List tracked assignments."""
-    db = TaskDatabase()
+    import moodle_agent.account_manager as acc_mgr
+    active_acc = acc_mgr.get_active_account()
+    db_path = acc_mgr.get_db_path(active_acc.username) if active_acc else None
+    db = TaskDatabase(db_path=db_path)
     status_filter = TaskStatus(args.status) if args.status else None
     tasks = db.get_all_tasks(status=status_filter)
 
@@ -326,7 +332,10 @@ def _cmd_list(args: argparse.Namespace) -> None:
 
 def _cmd_status(args: argparse.Namespace) -> None:
     """Show dashboard overview."""
-    db = TaskDatabase()
+    import moodle_agent.account_manager as acc_mgr
+    active_acc = acc_mgr.get_active_account()
+    db_path = acc_mgr.get_db_path(active_acc.username) if active_acc else None
+    db = TaskDatabase(db_path=db_path)
 
     console.print(BANNER.format(version=__version__))
 
@@ -340,7 +349,10 @@ def _cmd_status(args: argparse.Namespace) -> None:
 
 def _cmd_detail(args: argparse.Namespace) -> None:
     """Show task details."""
-    db = TaskDatabase()
+    import moodle_agent.account_manager as acc_mgr
+    active_acc = acc_mgr.get_active_account()
+    db_path = acc_mgr.get_db_path(active_acc.username) if active_acc else None
+    db = TaskDatabase(db_path=db_path)
     task = db.get_task(args.task_id)
     if not task:
         console.print(f"[red]Task #{args.task_id} not found[/red]")
@@ -364,7 +376,10 @@ def _cmd_detail(args: argparse.Namespace) -> None:
 def _cmd_generate(args: argparse.Namespace) -> None:
     """Generate study materials for a task."""
     _require_gemini_key()
-    db = TaskDatabase()
+    import moodle_agent.account_manager as acc_mgr
+    active_acc = acc_mgr.get_active_account()
+    db_path = acc_mgr.get_db_path(active_acc.username) if active_acc else None
+    db = TaskDatabase(db_path=db_path)
     task = db.get_task(args.task_id)
     if not task:
         console.print(f"[red]Task #{args.task_id} not found[/red]")
@@ -442,7 +457,10 @@ def _cmd_generate(args: argparse.Namespace) -> None:
 def _cmd_generate_all(args: argparse.Namespace) -> None:
     """Generate materials for all pending tasks."""
     _require_gemini_key()
-    db = TaskDatabase()
+    import moodle_agent.account_manager as acc_mgr
+    active_acc = acc_mgr.get_active_account()
+    db_path = acc_mgr.get_db_path(active_acc.username) if active_acc else None
+    db = TaskDatabase(db_path=db_path)
     tasks = db.get_pending_tasks()
 
     if not tasks:
@@ -503,7 +521,10 @@ def _cmd_generate_all(args: argparse.Namespace) -> None:
 
 def _cmd_review(args: argparse.Namespace) -> None:
     """Review and approve drafts."""
-    db = TaskDatabase()
+    import moodle_agent.account_manager as acc_mgr
+    active_acc = acc_mgr.get_active_account()
+    db_path = acc_mgr.get_db_path(active_acc.username) if active_acc else None
+    db = TaskDatabase(db_path=db_path)
     client = None
     try:
         if has_credentials():
@@ -527,7 +548,10 @@ def _cmd_review(args: argparse.Namespace) -> None:
 
 def _cmd_package(args: argparse.Namespace) -> None:
     """Create upload package."""
-    db = TaskDatabase()
+    import moodle_agent.account_manager as acc_mgr
+    active_acc = acc_mgr.get_active_account()
+    db_path = acc_mgr.get_db_path(active_acc.username) if active_acc else None
+    db = TaskDatabase(db_path=db_path)
     task = db.get_task(args.task_id)
     if not task:
         console.print(f"[red]Task #{args.task_id} not found[/red]")
@@ -555,7 +579,10 @@ def _cmd_explain(args: argparse.Namespace) -> None:
 def _cmd_watch(args: argparse.Namespace) -> None:
     """Watch mode: periodically sync and check reminders."""
     _require_credentials()
-    db = TaskDatabase()
+    import moodle_agent.account_manager as acc_mgr
+    active_acc = acc_mgr.get_active_account()
+    db_path = acc_mgr.get_db_path(active_acc.username) if active_acc else None
+    db = TaskDatabase(db_path=db_path)
     interval = args.interval
 
     console.print(
@@ -627,7 +654,10 @@ def _cmd_watch(args: argparse.Namespace) -> None:
 def _cmd_open(args: argparse.Namespace) -> None:
     """Open Moodle submission page."""
     _require_credentials()
-    db = TaskDatabase()
+    import moodle_agent.account_manager as acc_mgr
+    active_acc = acc_mgr.get_active_account()
+    db_path = acc_mgr.get_db_path(active_acc.username) if active_acc else None
+    db = TaskDatabase(db_path=db_path)
     task = db.get_task(args.task_id)
     if not task:
         console.print(f"[red]Task #{args.task_id} not found[/red]")

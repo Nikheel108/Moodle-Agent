@@ -9,6 +9,9 @@ import sqlite3
 
 from moodle_agent.config import DATA_DIR, STUDENT_NAME, STUDENT_PRN
 from moodle_agent.task_db import TaskDatabase, TaskStatus
+import moodle_agent.pdf_exporter as pdf_exporter
+import importlib
+importlib.reload(pdf_exporter)
 from moodle_agent.pdf_exporter import convert_md_to_pdf
 
 st.set_page_config(page_title="Universal Agent Dashboard", page_icon="🤖", layout="wide")
@@ -339,10 +342,15 @@ with tab1:
                             safe_title = re.sub(r'[\\/*?:"<>|]', '-', t.assignment_name)
                             prn = active_acc.prn if active_acc else "000000"
                             pdf_path = str(Path(t.draft_path).parent / f"{prn}_{safe_title}.pdf")
-                            if convert_md_to_pdf(open(t.draft_path, encoding='utf-8').read(), pdf_path):
+                            success, err_msg = convert_md_to_pdf(open(t.draft_path, encoding='utf-8').read(), pdf_path)
+                            if success:
                                 db.update_task_status(t.id, TaskStatus.APPROVED)
                                 db.update_task_paths(t.id, upload_package_path=pdf_path)
+                                st.toast(f'✅ {t.assignment_name} Draft Approved & PDF Exported!')
+                                time.sleep(1)
                                 st.rerun()
+                            else:
+                                st.error(f'❌ Failed to export PDF. Reason: {err_msg}')
                     elif t.status == 'approved':
                         if st.button("🚀 Submit", key=f"dash_sub_{t.id}", type="primary"):
                             from moodle_agent.moodle_client import MoodleClient
@@ -513,12 +521,15 @@ with tab3:
                         safe_title = re.sub(r'[\\/*?:"<>|]', '-', task.assignment_name)
                         prn = active_acc.prn if active_acc else "000000"
                         pdf_path = str(Path(task.draft_path).parent / f"{prn}_{safe_title}.pdf")
-                        if convert_md_to_pdf(draft_content, pdf_path):
+                        success, err_msg = convert_md_to_pdf(draft_content, pdf_path)
+                        if success:
                             db.update_task_status(task.id, TaskStatus.APPROVED)
                             db.update_task_paths(task.id, upload_package_path=pdf_path)
                             st.toast(f"✅ {task.assignment_name} Draft Approved & PDF Exported!")
                             time.sleep(0.5) # Give toast time to appear before rerun
                             st.rerun()
+                        else:
+                            st.error(f'❌ Failed to export PDF. Reason: {err_msg}')
                 
                 with btn_cols[1]:
                     if st.button("🔄 Retry Draft", key=f"retry_{task.id}"):

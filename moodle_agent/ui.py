@@ -13,8 +13,16 @@ from moodle_agent.pdf_exporter import convert_md_to_pdf
 
 st.set_page_config(page_title="Universal Agent Dashboard", page_icon="🤖", layout="wide")
 
-db = TaskDatabase()
-tasks = db.get_all_tasks()
+import moodle_agent.account_manager as acc_mgr
+
+# Load Active Account and DB
+active_acc = acc_mgr.get_active_account()
+if active_acc:
+    db = TaskDatabase(db_path=acc_mgr.get_db_path(active_acc.username))
+    tasks = db.get_all_tasks()
+else:
+    db = None
+    tasks = []
 
 # --- Utility Functions ---
 def get_urgency_level(due_date):
@@ -61,6 +69,22 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
     
+    # Account Switcher
+    accounts = acc_mgr.load_accounts()
+    account_names = [a.username for a in accounts]
+    
+    if accounts:
+        selected_account = st.selectbox(
+            "👤 Active Account", 
+            account_names, 
+            index=account_names.index(active_acc.username) if active_acc else 0
+        )
+        if not active_acc or selected_account != active_acc.username:
+            acc_mgr.set_active_account(selected_account)
+            st.rerun()
+    else:
+        st.warning("No accounts configured. Please go to Settings.")
+
     with st.container(border=True):
         platform = st.selectbox(
             "🌐 Integration Platform", 
@@ -130,14 +154,18 @@ with st.sidebar:
 
 # --- Main Dashboard Tabs ---
 st.title(f"🤖 Universal Assignment Agent - {platform}")
-st.markdown(f"**User:** {STUDENT_NAME} | **PRN:** {STUDENT_PRN}")
+if active_acc:
+    st.markdown(f"**User:** {active_acc.name or active_acc.username} | **PRN:** {active_acc.prn}")
+else:
+    st.markdown("**No Active Account** - Please configure an account in the Accounts tab.")
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🏠 Dashboard & Filters", 
     "📈 Workflow Tracking", 
     "⚡ Action Center", 
     "⚙️ Admin & Controls", 
-    "📜 History & Logs"
+    "📜 History & Logs",
+    "👥 Accounts"
 ])
 
 with tab1:
@@ -309,7 +337,8 @@ with tab1:
                     if has_draft and t.status != 'approved':
                         if st.button("✅ Approve", key=f"dash_app_{t.id}", type="primary"):
                             safe_title = re.sub(r'[\\/*?:"<>|]', '-', t.assignment_name)
-                            pdf_path = str(Path(t.draft_path).parent / f"{STUDENT_PRN}_{safe_title}.pdf")
+                            prn = active_acc.prn if active_acc else "000000"
+                            pdf_path = str(Path(t.draft_path).parent / f"{prn}_{safe_title}.pdf")
                             if convert_md_to_pdf(open(t.draft_path, encoding='utf-8').read(), pdf_path):
                                 db.update_task_status(t.id, TaskStatus.APPROVED)
                                 db.update_task_paths(t.id, upload_package_path=pdf_path)
@@ -482,7 +511,8 @@ with tab3:
                     
                     if st.button(btn_label, key=f"app_{task.id}", type=btn_type, disabled=is_approved):
                         safe_title = re.sub(r'[\\/*?:"<>|]', '-', task.assignment_name)
-                        pdf_path = str(Path(task.draft_path).parent / f"{STUDENT_PRN}_{safe_title}.pdf")
+                        prn = active_acc.prn if active_acc else "000000"
+                        pdf_path = str(Path(task.draft_path).parent / f"{prn}_{safe_title}.pdf")
                         if convert_md_to_pdf(draft_content, pdf_path):
                             db.update_task_status(task.id, TaskStatus.APPROVED)
                             db.update_task_paths(task.id, upload_package_path=pdf_path)
@@ -619,3 +649,82 @@ with tab5:
         st.code(log_content, language="text")
     else:
         st.info("No system logs found.")
+
+with tab6:
+    st.subheader("👥 Account Management")
+    st.markdown("Manage multiple Moodle accounts, credentials, and user data.", unsafe_allow_html=True)
+    
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        with st.container(border=True):
+            st.markdown("#### ➕ Add / Update Account")
+            with st.form("account_form"):
+                acc_username = st.text_input("Moodle Username", placeholder="e.g. 202401110020@mitaoe.ac.in")
+                acc_password = st.text_input("Moodle Password", type="password")
+                acc_moodle_url = st.text_input("Moodle URL", value="http://moodle.mitaoe.ac.in")
+                acc_name = st.text_input("Student Name", placeholder="e.g. John Doe")
+                acc_prn = st.text_input("PRN / Roll No", placeholder="e.g. 202401110020")
+                acc_batch = st.text_input("Batch", placeholder="e.g. A2")
+                acc_api_token = st.text_input("Moodle API Token (Optional)", type="password")
+                
+                submitted = st.form_submit_button("Save & Activate Account")
+                if submitted:
+                    if acc_username and acc_password and acc_moodle_url:
+                        new_acc = acc_mgr.Account(
+                            username=acc_username.strip(),
+                            moodle_url=acc_moodle_url.strip(),
+                            name=acc_name.strip(),
+                            prn=acc_prn.strip(),
+                            batch=acc_batch.strip(),
+                            is_active=True
+                        )
+                        acc_mgr.add_or_update_account(new_acc, acc_password, acc_api_token)
+                        st.success(f"Account {acc_username} saved and activated!")
+                        
+                        # Auto-fetch instantly
+                        with st.spinner("Fetching assignments for new account..."):
+                            subprocess.run(["python", "-m", "moodle_agent.cli", "sync"])
+                            
+                        st.rerun()
+                    else:
+                        st.error("Username, password, and URL are required.")
+
+    with col2:
+        with st.container(border=True):
+            st.markdown("#### 📋 Configured Accounts")
+            all_accounts = acc_mgr.load_accounts()
+            if not all_accounts:
+                st.info("No accounts configured yet.")
+            else:
+                for acc in all_accounts:
+                    with st.expander(f"{'🟢' if acc.is_active else '⚪'} {acc.username} ({acc.name})", expanded=acc.is_active):
+                        st.markdown(f"**URL:** {acc.moodle_url}")
+                        st.markdown(f"**PRN:** {acc.prn} | **Batch:** {acc.batch}")
+                        
+                        btn_c1, btn_c2 = st.columns(2)
+                        with btn_c1:
+                            if st.button("Activate", key=f"act_{acc.username}", disabled=acc.is_active):
+                                acc_mgr.set_active_account(acc.username)
+                                st.rerun()
+                        with btn_c2:
+                            if st.button("Delete", key=f"del_{acc.username}", type="primary"):
+                                acc_mgr.delete_account(acc.username)
+                                st.rerun()
+
+        with st.container(border=True):
+            st.markdown("#### 🔄 Global Sync Options")
+            st.info("Sync assignments for all configured accounts at once.")
+            if st.button("Sync All Accounts Now"):
+                with st.spinner("Syncing all accounts..."):
+                    original_acc = acc_mgr.get_active_account()
+                    for acc in all_accounts:
+                        st.toast(f"Syncing {acc.username}...")
+                        acc_mgr.set_active_account(acc.username)
+                        subprocess.run(["python", "-m", "moodle_agent.cli", "sync"])
+                    
+                    if original_acc:
+                        acc_mgr.set_active_account(original_acc.username)
+                    
+                    st.success("All accounts synced successfully!")
+                    st.rerun()

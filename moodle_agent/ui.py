@@ -28,6 +28,10 @@ else:
     tasks = []
 
 # --- Utility Functions ---
+@st.dialog("📝 Draft Preview", width="large")
+def show_draft_dialog(title, content):
+    st.markdown(content, unsafe_allow_html=True)
+
 def get_urgency_level(due_date):
     if not due_date: return "⚪ No Deadline"
     try:
@@ -83,7 +87,11 @@ with st.sidebar:
             index=account_names.index(active_acc.username) if active_acc else 0
         )
         if not active_acc or selected_account != active_acc.username:
-            acc_mgr.set_active_account(selected_account)
+            with st.spinner(f"🔄 Switching to {selected_account} and syncing..."):
+                import time
+                time.sleep(0.5)
+                acc_mgr.set_active_account(selected_account)
+                st.toast(f"✅ Switched active account to {selected_account}")
             st.rerun()
     else:
         st.warning("No accounts configured. Please go to Settings.")
@@ -360,17 +368,16 @@ with tab1:
                                 item_id = client.upload_file(pdf_path)
                                 if item_id and client.submit_assignment_file(t.moodle_assignment_id, item_id):
                                     db.update_task_status(t.id, TaskStatus.SUBMITTED)
-                                    st.success("Uploaded!")
+                                    st.toast(f"🎉 Successfully Uploaded {t.assignment_name if 't' in locals() else task.assignment_name}!")
+                                    st.balloons()
+                                    import time
+                                    time.sleep(1.5)
                                     st.rerun()
                                 else:
                                     st.error("Failed to submit to Moodle.")
                             else:
                                 st.error("PDF missing.")
                                 
-            if st.session_state.get(f"show_draft_{t.id}", False):
-                with st.expander("📄 Draft Preview", expanded=True):
-                    with open(t.draft_path, 'r', encoding='utf-8') as f:
-                        st.markdown(f.read(), unsafe_allow_html=True)
             st.write("") # Spacer
 
 with tab2:
@@ -548,7 +555,10 @@ with tab3:
                                 item_id = client.upload_file(pdf_path)
                                 if item_id and client.submit_assignment_file(task.moodle_assignment_id, item_id):
                                     db.update_task_status(task.id, TaskStatus.SUBMITTED)
-                                    st.success("Uploaded!")
+                                    st.toast(f"🎉 Successfully Uploaded {t.assignment_name if 't' in locals() else task.assignment_name}!")
+                                    st.balloons()
+                                    import time
+                                    time.sleep(1.5)
                                     st.rerun()
                                 else:
                                     st.error("Failed to submit to Moodle. Check logs.")
